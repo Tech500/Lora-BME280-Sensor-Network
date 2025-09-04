@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  lora-api:
+    build: ./server/docker
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=sqlite:///sensor_data.db
+      - API_KEY=your-secure-api-key-here
+    volumes:
+      - sensor_data:/app/data
+      - sensor_logs:/app/logs
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./server/docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ssl_certs:/etc/ssl/certs
+    depends_on:
+      - lora-api
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./tools/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  sensor_data:
+  sensor_logs:
+  ssl_certs:
+  grafana_data:
