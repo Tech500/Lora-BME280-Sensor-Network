@@ -1,0 +1,559 @@
+#!/bin/bash
+# Digital Ocean 
+
+# Run this on your existing Digital Ocean droplet (alongside RustDesk)
+
+set -e
+
+echo "🚀 Setting up LoRa Sensor API on Digital Ocean..."
+
+# Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install Python and dependencies
+sudo apt install -y python3 python3-pip python3-venv nginx
+
+# Create application directory
+sudo mkdir -p /opt/lora_sensors
+sudo chown $USER:$USER /opt/lora_sensors
+cd /opt/lora_sensors
+
+# Create Python virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install Python packages
+pip install flask flask-cors jinja2 gunicorn
+
+# Create the main application file
+cat > sensor_api.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Digital Ocean LoRa Sensor Data API
+Simple Flask server to receive and store BME280 sensor data from your LoRa gateway
+Perfect for running alongside RustDesk on your existing droplet
+"""
+
+from flask import Flask, request, jsonify, render_template_string, send_file
+from flask_cors import CORS
+import sqlite3
+import json
+import os
+from datetime import datetime, timedelta
+import csv
+import io
+import logging
+from logging.handlers import RotatingFileHandler
+import threading
+import time
+
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)  # Allow cross-origin requests
+
+# Configuration
+DATABASE_FILE = '/opt/lora_sensors/sensor_data.db'
+LOG_FILE = '/opt/lora_sensors/sensor_api.log'
+DATA_RETENTION_DAYS = 90  # Keep 90 days of data
+API_KEY = 'lora-sensor-2025-secure'  # Change this!
+
+# Ensure directories exist
+os.makedirs(os.path.dirname(DATABASE_FILE), exist_ok=True)
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
+# Setup logging
+logging.basicConfig(
+    handlers=[RotatingFileHandler(LOG_FILE, maxBytes=10000000, backupCount=5)],
+    level=logging.INFO,
+    format='%(asctime)s %(levelname)s: %(message)s'
+)
+
+def init_database():
+    """Initialize SQLite database with sensor data table"""
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sensor_readings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_id TEXT NOT NULL,
+            gateway_timestamp TEXT NOT NULL,
+            node_timestamp TEXT NOT NULL,
+            temperature_f REAL NOT NULL,
+            humidity REAL NOT NULL,
+            pressure_hpa REAL NOT NULL,
+            heat_index REAL,
+            dew_point REAL,
+            rssi REAL,
+            snr REAL,
+            collection_cycle INTEGER,
+            gateway_id TEXT,
+            received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create indexes for better performance
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_node_id ON sensor_readings(node_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_gateway_timestamp ON sensor_readings(gateway_timestamp)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_received_at ON sensor_readings(received_at)')
+    
+    # Create node status table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS node_status (
+            node_id TEXT PRIMARY KEY,
+            last_seen TIMESTAMP,
+            total_readings INTEGER DEFAULT 0,
+            last_temperature REAL,
+            last_humidity REAL,
+            last_pressure REAL,
+            last_rssi REAL,
+            is_active BOOLEAN DEFAULT 1,
+            location TEXT
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    logging.info("Database initialized successfully")
+
+@app.route('/api/sensor-data', methods=['POST'])
+def receive_sensor_data():
+    """Receive sensor data from LoRa gateway"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['node_id', 'temperature_f', 'humidity', 'pressure_hpa']
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
+        
+        # Insert into database
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO sensor_readings 
+            (node_id, gateway_timestamp, node_timestamp, temperature_f, humidity, 
+             pressure_hpa, heat_index, dew_point, rssi, snr, collection_cycle, gateway_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('node_id'),
+            data.get('gateway_timestamp', ''),
+            data.get('node_timestamp', ''),
+            data.get('temperature_f'),
+            data.get('humidity'),
+            data.get('pressure_hpa'),
+            data.get('heat_index'),
+            data.get('dew_point'),
+            data.get('rssi'),
+            data.get('snr'),
+            data.get('collection_cycle'),
+            data.get('gateway_id', 'UNKNOWN')
+        ))
+        
+        # Update node status
+        cursor.execute('''
+            INSERT OR REPLACE INTO node_status 
+            (node_id, last_seen, total_readings, last_temperature, last_humidity, 
+             last_pressure, last_rssi, is_active)
+            VALUES (?, CURRENT_TIMESTAMP, 
+                    COALESCE((SELECT total_readings FROM node_status WHERE node_id = ?) + 1, 1),
+                    ?, ?, ?, ?, 1)
+        ''', (
+            data.get('node_id'),
+            data.get('node_id'),
+            data.get('temperature_f'),
+            data.get('humidity'),
+            data.get('pressure_hpa'),
+            data.get('rssi')
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        logging.info(f"Received data from {data.get('node_id')}: {data.get('temperature_f')}°F, {data.get('humidity')}%")
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Data stored successfully',
+            'node_id': data.get('node_id'),
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"Error processing sensor data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/', methods=['GET'])
+def dashboard():
+    """Simple web dashboard to view sensor data"""
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        # Get recent readings (last 24 hours)
+        cursor.execute('''
+            SELECT node_id, gateway_timestamp, temperature_f, humidity, pressure_hpa, 
+                   rssi, received_at
+            FROM sensor_readings 
+            WHERE received_at > datetime('now', '-24 hours')
+            ORDER BY received_at DESC 
+            LIMIT 50
+        ''')
+        recent_readings = cursor.fetchall()
+        
+        # Get node status
+        cursor.execute('''
+            SELECT node_id, last_seen, total_readings, last_temperature, 
+                   last_humidity, last_pressure, last_rssi, is_active
+            FROM node_status
+            ORDER BY last_seen DESC
+        ''')
+        node_status = cursor.fetchall()
+        
+        conn.close()
+        
+        # Simple HTML response
+        html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>LoRa Sensor Dashboard</title>
+            <meta http-equiv="refresh" content="60">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                .header {{ background: #007acc; color: white; padding: 15px; border-radius: 5px; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; }}
+                .temp-high {{ background-color: #ffebee; }}
+                .humidity-high {{ background-color: #e3f2fd; }}
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>🌡️ LoRa Sensor Network Dashboard</h1>
+                <p>Digital Ocean • Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+            </div>
+            
+            <h2>📊 Node Status</h2>
+            <table>
+                <tr><th>Node ID</th><th>Last Seen</th><th>Total</th><th>Temp</th><th>Humidity</th><th>Pressure</th><th>RSSI</th></tr>
+        '''
+        
+        for node in node_status:
+            html += f'''
+                <tr>
+                    <td><strong>{node[0]}</strong></td>
+                    <td>{node[1]}</td>
+                    <td>{node[2]}</td>
+                    <td>{'%.1f°F' % node[3] if node[3] else 'N/A'}</td>
+                    <td>{'%.1f%%' % node[4] if node[4] else 'N/A'}</td>
+                    <td>{'%.2f hPa' % node[5] if node[5] else 'N/A'}</td>
+                    <td>{'%.1f dBm' % node[6] if node[6] else 'N/A'}</td>
+                </tr>
+            '''
+        
+        html += '''
+            </table>
+            
+            <h2>📈 Recent Readings</h2>
+            <table>
+                <tr><th>Node</th><th>Time</th><th>Temp</th><th>Humidity</th><th>Pressure</th><th>RSSI</th></tr>
+        '''
+        
+        for reading in recent_readings:
+            html += f'''
+                <tr>
+                    <td><strong>{reading[0]}</strong></td>
+                    <td>{reading[1]}</td>
+                    <td>{'%.1f°F' % reading[2]}</td>
+                    <td>{'%.1f%%' % reading[3]}</td>
+                    <td>{'%.2f hPa' % reading[4]}</td>
+                    <td>{'%.1f dBm' % reading[5] if reading[5] else 'N/A'}</td>
+                </tr>
+            '''
+        
+        html += '''
+            </table>
+            
+            <h2>🔗 API Endpoints</h2>
+            <ul>
+                <li><code>POST /api/sensor-data</code> - Receive sensor data</li>
+                <li><code>GET /api/nodes</code> - Get all nodes JSON</li>
+                <li><code>GET /api/export/csv</code> - Export data as CSV</li>
+            </ul>
+        </body>
+        </html>
+        '''
+        
+        return html
+        
+    except Exception as e:
+        logging.error(f"Dashboard error: {e}")
+        return f"Dashboard error: {e}", 500
+
+@app.route('/api/nodes', methods=['GET'])
+def get_nodes():
+    """Get all nodes as JSON"""
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT node_id, last_seen, total_readings, last_temperature,
+                   last_humidity, last_pressure, last_rssi, is_active
+            FROM node_status
+            ORDER BY last_seen DESC
+        ''')
+        
+        nodes = []
+        for row in cursor.fetchall():
+            nodes.append({
+                'node_id': row[0],
+                'last_seen': row[1],
+                'total_readings': row[2],
+                'last_temperature': row[3],
+                'last_humidity': row[4],
+                'last_pressure': row[5],
+                'last_rssi': row[6],
+                'is_active': bool(row[7])
+            })
+        
+        conn.close()
+        return jsonify(nodes)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export/csv', methods=['GET'])
+def export_csv():
+    """Export all data as CSV file"""
+    try:
+        days = int(request.args.get('days', 7))
+        
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT node_id, gateway_timestamp, temperature_f, humidity, pressure_hpa, 
+                   rssi, snr, received_at
+            FROM sensor_readings
+            WHERE received_at > datetime('now', '-%d days')
+            ORDER BY received_at DESC
+        ''' % days)
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['node_id', 'gateway_timestamp', 'temperature_f', 'humidity', 'pressure_hpa', 'rssi', 'snr', 'received_at'])
+        
+        # Write data
+        for row in cursor.fetchall():
+            writer.writerow(row)
+        
+        conn.close()
+        
+        # Convert to bytes for download
+        output.seek(0)
+        csv_data = output.getvalue().encode('utf-8')
+        
+        return send_file(
+            io.BytesIO(csv_data),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'lora_sensor_data_{datetime.now().strftime("%Y%m%d")}.csv'
+        )
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    # Initialize database
+    init_database()
+    
+    # Start Flask app
+    logging.info("Starting LoRa Sensor API server")
+    app.run(host='0.0.0.0', port=5000, debug=False)
+EOF
+
+# Make the script executable
+chmod +x sensor_api.py
+
+# Test the application
+echo "🧪 Testing the API server..."
+source venv/bin/activate
+python3 sensor_api.py &
+SERVER_PID=$!
+
+# Wait a moment for server to start
+sleep 3
+
+# Test if server is responding
+if curl -s http://localhost:5000/ > /dev/null; then
+    echo "✅ API server is working!"
+else
+    echo "❌ API server test failed"
+fi
+
+# Stop test server
+kill $SERVER_PID 2>/dev/null || true
+
+# Create systemd service file
+sudo tee /etc/systemd/system/lora-sensor-api.service > /dev/null << EOF
+[Unit]
+Description=LoRa Sensor Data API
+After=network.target
+
+[Service]
+Type=exec
+User=$USER
+Group=$USER
+WorkingDirectory=/opt/lora_sensors
+Environment=PATH=/opt/lora_sensors/venv/bin
+ExecStart=/opt/lora_sensors/venv/bin/python3 /opt/lora_sensors/sensor_api.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable lora-sensor-api
+sudo systemctl start lora-sensor-api
+
+# Check service status
+if sudo systemctl is-active --quiet lora-sensor-api; then
+    echo "✅ LoRa Sensor API service is running!"
+else
+    echo "❌ Service failed to start. Check logs with: sudo journalctl -u lora-sensor-api"
+fi
+
+# Configure Nginx reverse proxy (optional - for custom domain)
+sudo tee /etc/nginx/sites-available/lora-sensors > /dev/null << EOF
+server {
+    listen 80;
+    server_name _; # Replace with your domain if you have one
+    
+    location /sensors/ {
+        proxy_pass http://localhost:5000/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+    
+    # Keep your existing RustDesk and other configurations here
+}
+EOF
+
+# Enable Nginx site (optional)
+echo "📝 Nginx configuration created at /etc/nginx/sites-available/lora-sensors"
+echo "To enable it, run: sudo ln -s /etc/nginx/sites-available/lora-sensors /etc/nginx/sites-enabled/"
+echo "Then: sudo nginx -t && sudo systemctl reload nginx"
+
+# Create a simple test script
+cat > test_api.py << 'EOF'
+#!/usr/bin/env python3
+"""Test script for LoRa Sensor API"""
+
+import requests
+import json
+from datetime import datetime
+
+# Test data
+test_data = {
+    "node_id": "TEST01",
+    "gateway_timestamp": datetime.now().strftime("%a-%m-%d-%Y--%H:%M:%S"),
+    "node_timestamp": datetime.now().strftime("%Y-%m-%d-%H:%M:%S"),
+    "temperature_f": 75.5,
+    "humidity": 65.2,
+    "pressure_hpa": 1013.25,
+    "heat_index": 78.1,
+    "dew_point": 12.8,
+    "rssi": -85.5,
+    "snr": 9.2,
+    "collection_cycle": 42,
+    "gateway_id": "GATEWAY_TEST"
+}
+
+# Test the API
+try:
+    # Test POST endpoint
+    response = requests.post(
+        'http://localhost:5000/api/sensor-data',
+        json=test_data,
+        headers={'Content-Type': 'application/json'}
+    )
+    
+    print(f"✅ POST test: {response.status_code} - {response.json()}")
+    
+    # Test GET endpoints
+    nodes_response = requests.get('http://localhost:5000/api/nodes')
+    print(f"✅ Nodes API: {nodes_response.status_code} - Found {len(nodes_response.json())} nodes")
+    
+    print("🎉 All API tests passed!")
+    
+except Exception as e:
+    print(f"❌ API test failed: {e}")
+EOF
+
+chmod +x test_api.py
+
+# Install requests for testing
+source venv/bin/activate
+pip install requests
+
+# Get server IP
+SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || echo "Unable to determine IP")
+
+# Final setup summary
+echo ""
+echo "🎉 LoRa Sensor API Setup Complete!"
+echo "================================="
+echo ""
+echo "🌐 Your API is running at:"
+echo "   http://$SERVER_IP:5000/"
+echo "   http://localhost:5000/"
+echo ""
+echo "📡 API Endpoints:"
+echo "   POST http://$SERVER_IP:5000/api/sensor-data"
+echo "   GET  http://$SERVER_IP:5000/api/nodes"
+echo "   GET  http://$SERVER_IP:5000/api/export/csv"
+echo ""
+echo "🔧 Service Management:"
+echo "   sudo systemctl status lora-sensor-api"
+echo "   sudo systemctl restart lora-sensor-api"
+echo "   sudo journalctl -u lora-sensor-api -f"
+echo ""
+echo "🧪 Test the API:"
+echo "   cd /opt/lora_sensors && ./test_api.py"
+echo ""
+echo "📁 Files created:"
+echo "   /opt/lora_sensors/sensor_api.py - Main application"
+echo "   /opt/lora_sensors/sensor_data.db - SQLite database"
+echo "   /opt/lora_sensors/sensor_api.log - Application logs"
+echo "   /etc/systemd/system/lora-sensor-api.service - System service"
+echo ""
+
+# Create UFW firewall rule (if UFW is active)
+if sudo ufw status | grep -q "Status: active"; then
+    echo "🛡️  Adding firewall rule for port 5000..."
+    sudo ufw allow 5000/tcp comment "LoRa Sensor API"
+    echo "✅ Firewall rule added"
+fi
+
+echo "🚀 Ready to receive LoRa sensor data!"
+echo ""
+echo "Next steps:"
+echo "1. Update your LoRa gateway code with: const String WEB_REQUEST_ENDPOINT = \"http://$SERVER_IP:5000/api/sensor-data\";"
+echo "2. Test with: curl -X POST http://$SERVER_IP:5000/api/sensor-data -H 'Content-Type: application/json' -d '{\"node_id\":\"TEST\",\"temperature_f\":75,\"humidity\":60,\"pressure_hpa\":1013}'"
+echo "3. View dashboard at: http://$SERVER_IP:5000/"
