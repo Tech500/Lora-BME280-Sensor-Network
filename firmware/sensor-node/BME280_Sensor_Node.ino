@@ -1,236 +1,491 @@
-/*
-  EoRa Pi BME280 Sensor Node - Low Power LoRa Sensor
-  Sends BME280 data (temperature, humidity, pressure) with timestamp
-  Compatible with EoRa Pi Gateway
-*/
+//#define RADIOLIB_DEBUG
 
 #include <RadioLib.h>
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include <time.h>
-#include <Wire.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
-
 #define EoRa_PI_V1
+
 #include "boards.h"
+#include <Wire.h>
+#include <SPI.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <rom/rtc.h>
+#include <driver/rtc_io.h>
+#include <esp_system.h>
+#include "eora_s3_power_mgmt.h"
 
-// Node Configuration
-const String NODE_ID = "NODE01";  // Change for each sensor node
-const unsigned long TRANSMIT_INTERVAL = 60000;  // Send data every 60 seconds
-const unsigned long DUTY_CYCLE_SLEEP = 30000;   // Sleep 30 seconds between checks
 
-// LoRa Parameters - MUST MATCH GATEWAY EXACTLY
-uint8_t txPower = 22;
+// "EoRa Pi" development board pin assignments
+#define RADIO_SCLK_PIN 5
+#define RADIO_MISO_PIN 3
+#define RADIO_MOSI_PIN 6
+#define RADIO_CS_PIN 7
+#define RADIO_DIO1_PIN 33  //Not RTC_IO Wakecapable! --Must be listed here!
+#define RADIO_BUSY_PIN 34
+#define RADIO_RST_PIN 8
+#define BOARD_LED 37
+
+// RADIO_DIO1_PIN 33  is not External wake capable!
+#define WAKE_PIN GPIO_NUM_16  // No exceptions! -DIO1 signal re-routed!
+
+#define BOARD_LED 37
+/** LED on level */
+#define LED_ON HIGH
+/** LED off level */
+#define LED_OFF LOW
+
+// === "EoRa PI" development board LoRa configuration ==================
+#define USING_SX1262_868M
+
+#if defined(USING_SX1268_433M)
+uint8_t txPower = 14;
+float radioFreq = 433.0;
+SX1268 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN);
+#elif defined(USING_SX1262_868M)
+uint8_t txPower = 14;
 float radioFreq = 915.0;
-#define LORA_PREAMBLE_LENGTH 512
-#define LORA_SPREADING_FACTOR 7
-#define LORA_BANDWIDTH 125.0
-#define LORA_CODINGRATE 7
-
-// BME280 Configuration
-#define SEALEVELPRESSURE_HPA (1013.25)
-Adafruit_BME280 bme; // I2C interface
-
 SX1262 radio = new Module(RADIO_CS_PIN, RADIO_DIO1_PIN, RADIO_RST_PIN, RADIO_BUSY_PIN);
+#endif
 
-// Timing variables
-unsigned long lastTransmission = 0;
-unsigned long lastWORCheck = 0;
-bool wokeFromWOR = false;
+SPIClass spi(SPI);
+SPISettings spiSettings(2000000, MSBFIRST, SPI_MODE0);
 
-// Time configuration
-#define TZ "EST+5EDT,M3.2.0/2,M11.1.0/2"
-const char * ntpServer1 = "pool.ntp.org";
-const char * ntpServer2 = "time.nist.gov";
+// Define LoRa parameters (MUST MATCH TRANSMITTER EXACTLY!)
+#define RF_FREQUENCY 915.0                                // MHz
+#define TX_OUTPUT_POWER 14                                // dBm
+#define LORA_BANDWIDTH 125.0                              // kHz
+#define LORA_SPREADING_FACTOR 7                           // [SF7..SF12]
+#define LORA_CODINGRATE 7                                 // [1: 4/5, 2: 4/6, 3: 4/7, 4: 4/8] -> RadioLib uses 7 for 4/7
+#define LORA_PREAMBLE_LENGTH symbols                         // INCREASED TO MATCH TRANSMITTER!
+#define LORA_SYNC_WORD RADIOLIB_SX126X_SYNC_WORD_PRIVATE  // LoRa sync word
 
-char strftime_buf[64];
+#define DUTY_CYCLE_PARAMS 100, 4900  // Test 5 --(Best --2% Duty cycle  100, 4900)
 
-String getCurrentDateTime() {
-  struct tm *ti;
-  time_t tnow = time(nullptr);
-  ti = localtime(&tnow);
-  strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%d-%H:%M:%S", localtime(&tnow));
-  String dtStamp = String(strftime_buf);
-  return dtStamp;
-}
-
-// Read BME280 sensor data
-struct BME280Reading {
-  float temperature_c;
-  float temperature_f;
-  float humidity;
-  float pressure_hpa;
-  float altitude_m;
-  bool valid;
+// ===== PACKET STRUCTURES =====
+struct CommandPacket {
+  uint8_t packetType;        // 0x01 for command
+  uint16_t nodeID;           // target node (0xFFFF = broadcast)
+  uint8_t sequenceNumber;    // command sequence
+  char timestamp[32];        // command timestamp
+  uint8_t checksum;
 };
 
-BME280Reading readBME280() {
-  BME280Reading reading;
-  reading.valid = false;
-  
-  if (!bme.begin(0x76)) {  // Try primary I2C address
-    if (!bme.begin(0x77)) {  // Try alternate I2C address
-      Serial.println("Could not find a valid BME280 sensor!");
-      return reading;
-    }
-  }
-  
-  reading.temperature_c = bme.readTemperature();
-  reading.temperature_f = (reading.temperature_c * 9.0/5.0) + 32.0;
-  reading.humidity = bme.readHumidity();
-  reading.pressure_hpa = bme.readPressure() / 100.0F;  // Convert Pa to hPa
-  reading.altitude_m = bme.readAltitude(SEALEVELPRESSURE_HPA);
-  reading.valid = true;
-  
-  return reading;
-}
+struct DataPacket {
+  uint8_t packetType;        // 0x02 for sensor data
+  uint16_t nodeID;           // responding node
+  uint8_t sequenceNumber;    // matching command sequence
+  char commandTimestamp[32]; // echo original command timestamp
+  float temperature;         // BME280 simulation
+  float humidity;
+  float pressure;
+  float batteryVoltage;
+  int16_t rssi;             // RSSI of received command
+  uint8_t checksum;
+};
 
-// Send BME280 data to gateway
-void transmitSensorData() {
-  BME280Reading sensor = readBME280();
-  
-  if (!sensor.valid) {
-    Serial.println("❌ Failed to read BME280 sensor");
+// ===== NODE CONFIGURATION =====
+uint16_t myNodeID = 0x1001;  // Unique node identifier
+CommandPacket lastCommand;   // Store received command
+bool commandReceived = false;
+
+// ===== SENSOR VALUES =====
+float dummyTemp = 22.5;
+float dummyHumidity = 65.0;
+float dummyPressure = 1013.2;
+
+// Global variables
+int task = 0;
+String str;
+String timestamp = "";
+
+String centigrade, humidity, pressure;
+
+#define BUFFER_SIZE 512  // Define the payload size here
+
+// flag to indicate that a packet was received
+volatile bool receivedFlag = false;
+
+// disable interrupt when it's not needed
+volatile bool enableInterrupt = true;
+
+// this function is called when a complete packet
+// is received by the module
+// IMPORTANT: this function MUST be 'void' type
+//            and MUST NOT have any arguments!
+void setFlag(void) {
+  // check if the interrupt is enabled
+  if (!enableInterrupt) {
     return;
   }
-  
-  String timestamp = getCurrentDateTime();
-  
-  // Format: "NodeID,timestamp,temp_c,humidity,pressure_hpa"
-  String payload = NODE_ID + "," + timestamp + "," + 
-                   String(sensor.temperature_c, 2) + "," +
-                   String(sensor.humidity, 1) + "," +
-                   String(sensor.pressure_hpa, 2);
-  
-  Serial.println("\n🌡️  === TRANSMITTING BME280 DATA ===");
-  Serial.printf("Node ID: %s\n", NODE_ID.c_str());
-  Serial.printf("Timestamp: %s\n", timestamp.c_str());
-  Serial.printf("Temperature: %.2f°C (%.1f°F)\n", sensor.temperature_c, sensor.temperature_f);
-  Serial.printf("Humidity: %.1f%%\n", sensor.humidity);
-  Serial.printf("Pressure: %.2f hPa\n", sensor.pressure_hpa);
-  Serial.printf("Altitude: %.1f m\n", sensor.altitude_m);
-  Serial.printf("Payload: %s\n", payload.c_str());
-  Serial.printf("Payload Length: %d bytes\n", payload.length());
-  
-  // Transmit the data
-  unsigned long startTime = millis();
-  int state = radio.transmit(payload);
-  unsigned long transmitTime = millis() - startTime;
-  
-  if (state == RADIOLIB_ERR_NONE) {
-    Serial.println("✅ Sensor data transmitted successfully!");
-    Serial.printf("Transmission time: %lu ms\n", transmitTime);
-    Serial.printf("Data rate: %.2f bps\n", (payload.length() * 8.0) / (transmitTime / 1000.0));
-  } else {
-    Serial.printf("❌ Transmission failed! Error code: %d\n", state);
-    
-    switch(state) {
-      case RADIOLIB_ERR_PACKET_TOO_LONG:
-        Serial.println("Error: Packet too long");
-        break;
-      case RADIOLIB_ERR_TX_TIMEOUT:
-        Serial.println("Error: Transmission timeout");
-        break;
-      case RADIOLIB_ERR_CHIP_NOT_FOUND:
-        Serial.println("Error: Radio chip not responding");
-        break;
-      default:
-        Serial.println("Check RadioLib documentation for error code details");
-    }
-  }
-  
-  Serial.println("=== TRANSMISSION COMPLETE ===\n");
+
+  // we got a packet, set the flag
+  receivedFlag = true;
 }
 
-// Check for incoming WOR or data requests
-bool checkForCommands() {
-  String receivedData;
-  int state = radio.startReceive();
-  
-  if (state != RADIOLIB_ERR_NONE) {
-    Serial.printf("Failed to start receive: %d\n", state);
-    return false;
+// Debug: Track wake-up source
+String wakeupReason = "Unknown";
+
+/** Print reset reason */
+void print_reset_reason(RESET_REASON reason);
+
+// ===== CHECKSUM CALCULATION =====
+uint8_t calculateChecksum(uint8_t* data, size_t length) {
+  uint8_t sum = 0;
+  for(size_t i = 0; i < length-1; i++) {
+    sum ^= data[i];
   }
+  return sum;
+}
+
+bool validateChecksum(uint8_t* data, size_t length) {
+  return calculateChecksum(data, length) == data[length-1];
+}
+
+void setupLoRa(){
+  initBoard();
+    //Delay is required.
+    delay(1500);
+
+    // initialize SX126x with default settings
+    Serial.print(F("[SX126x] Initializing ... "));
+    //int state = radio.begin(radioFreq);  //example
+    int state = radio.begin(
+    radioFreq,  // 915.0 MHz
+    125.0,      // Bandwidth
+    7,          // Spreading factor
+    7,          // Coding rate
+    RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
+    14,   // 14 dBm for good balance
+    512,   // Preamble length
+    0.0,  // No TCXO
+    true  // LDO mode ON
+  );
+    if (state == RADIOLIB_ERR_NONE)
+    {
+        Serial.println(F("success!"));
+    }
+    else
+    {
+        Serial.print(F("failed, code "));
+        Serial.println(state);
+        while (true)
+            ;
+    }
+
+    // set the function that will be called
+    // when new packet is received
+    radio.setDio1Action(setFlag);
+
+    // start listening for LoRa packets
+    Serial.print(F("[SX126x] Starting to listen ... "));
+    //state = radio.startReceive();  //example
+    // Set up the radio for duty cycle receiving
+    state = radio.startReceiveDutyCycleAuto();
+    if (state == RADIOLIB_ERR_NONE)
+    {
+        Serial.println(F("success!\n"));
+    }
+    else
+    {
+        Serial.print(F("failed, code "));
+        Serial.println(state);
+        while (true)
+            ;
+    }
+}
+
+
+// ===== SENSOR SIMULATION =====
+void collectSensorData() {
+  // Simulate BME280 readings with small random variations
+  dummyTemp += random(-10, 10) / 10.0;      // ±1°C variation
+  dummyHumidity += random(-50, 50) / 10.0;  // ±5% variation  
+  dummyPressure += random(-10, 10) / 10.0;  // ±1hPa variation
   
-  // Wait briefly for incoming messages
-  delay(1000);
+  // Keep values in reasonable ranges
+  dummyTemp = constrain(dummyTemp, 15.0, 35.0);
+  dummyHumidity = constrain(dummyHumidity, 30.0, 95.0);
+  dummyPressure = constrain(dummyPressure, 980.0, 1050.0);
   
-  state = radio.readData(receivedData);
-  
+  Serial.printf("📊 Dummy sensor readings: %.1f°C, %.1f%%, %.1fhPa\n", 
+                dummyTemp, dummyHumidity, dummyPressure);
+}
+
+void sendSensorResponse() {
+float batteryVoltage = 3.72;         // Stub value
+uint8_t packetType = 0x01;           // Sensor packet type
+
+static uint16_t sequenceNumber = 0;  // Sequence tracker
+sequenceNumber++;
+
+
+
+  // Format sensor values into strings
+  char temperature[7];
+  dtostrf(dummyTemp, 6, 1, temperature);
+
+  char humidity[7];
+  dtostrf(dummyHumidity, 6, 1, humidity); 
+
+  char baroPressure[9];
+  dtostrf(dummyPressure, 6, 3, baroPressure); 
+
+  // Build response string
+  String response = String(myNodeID, HEX) + "," + timestamp + ","
+                  + temperature + "," + humidity + "," + baroPressure + " ,"
+                  + String(batteryVoltage, 2) + "V";
+
+  // Log packet info
+  Serial.printf("📊 Sending packet: Type=0x%02X, Size=%d bytes\n",
+                packetType, response.length());
+
+  // Collision avoidance delay
+  delay(100 + (myNodeID & 0xFF) * 2);
+
+  // Transmit response
+  int state = radio.transmit((uint8_t*)response.c_str(), response.length());
+
   if (state == RADIOLIB_ERR_NONE) {
-    Serial.println("\n📡 === COMMAND RECEIVED ===");
-    Serial.printf("RSSI: %.2f dBm\n", radio.getRSSI());
-    Serial.printf("SNR: %.2f dB\n", radio.getSNR());
-    Serial.printf("Command: %s\n", receivedData.c_str());
-    
-    // Check for Wake-on-Radio signal
-    if (receivedData.indexOf("WOR") >= 0) {
-      Serial.println("🚨 Wake-on-Radio signal detected!");
-      wokeFromWOR = true;
-      return true;
-    }
-    
-    // Check for data request
-    if (receivedData.startsWith("REQUEST," + NODE_ID)) {
-      Serial.println("📊 Data request received for this node!");
-      return true;
-    }
-    
-    Serial.println("Command not for this node");
-    Serial.println("=== END COMMAND ===\n");
-  } else if (state != RADIOLIB_ERR_RX_TIMEOUT) {
-    Serial.printf("Receive error: %d\n", state);
+    Serial.println("📤 Sensor response sent successfully");
+    Serial.printf("   Node: %04X, Sequence: %d\n", myNodeID, sequenceNumber);
+    Serial.printf("   Data: %s\n", response.c_str());
+  } else {
+    Serial.printf("❌ Response transmission failed, error code: %d\n", state);
   }
+}
+
+void taskDispatcher() {
+  // Wake over radio
+  digitalWrite(BUILTIN_LED, HIGH);
+  Serial.println("✅ WOR");
+  Serial.println(timestamp);
+  setupLoRa();
+  radio.startReceive();   //radio.startReceiveDutyCycleAuto();
+  collectSensorData();  //BME280 data
+  delay(250);
+  sendSensorResponse();  //Send to Gateway
+  radio.sleep();
+  wakeByTimer();
+  Serial.println("✅ Timer Expired");
+  setupLoRa();  //Back to Duty Cycle listening
+  digitalWrite(BUILTIN_LED, LOW);
+  goToSleep();
+}
+
+//No parsing required!
+
+void wakeByTimer(){
+  // Set deep sleep timer for 30s test / 120s production
+  esp_sleep_enable_timer_wakeup(30 * 1000000ULL); // 30 seconds in microseconds
+  // or
+  //esp_sleep_enable_timer_wakeup(120 * 1000000ULL); // 120 seconds
+
+  // Go to deep sleep - ESP32 wakes itself up after timer
+  esp_deep_sleep_start();
+}
+
+void goToSleep(void) {
+  Serial.println("=== PREPARING FOR DEEP SLEEP ===");
+  Serial.printf("DIO1 pin state before sleep: %d\n", digitalRead(RADIO_DIO1_PIN));
+  Serial.printf("Wake pin (GPIO16) state before sleep: %d\n", digitalRead(WAKE_PIN));
   
-  return false;
+  // Set up the radio for duty cycle receiving
+  radio.startReceiveDutyCycleAuto();
+
+  Serial.println("Configuring RTC GPIO and deep sleep wake-up...");
+  // Configure GPIO16 for RTC wake-up - using internal pull-down
+  rtc_gpio_pulldown_en(WAKE_PIN);  // Internal pull-down on GPIO16
+
+  // Setup deep sleep with wakeup by GPIO16 - RISING edge (buffered DIO1 signal)
+  esp_sleep_enable_ext0_wakeup(WAKE_PIN, RISING);
+
+  // Turn off LED before sleep
+  digitalWrite(BOARD_LED, LED_OFF);
+
+  Serial.println("✅ Going to deep sleep now...");
+  Serial.println("Wake-up sources: DIO1 pin reroute\n");
+  Serial.flush();  // Make sure all serial data is sent before sleep
+
+  SPI.end();  //Power saving
+
+  // Finally set ESP32 into sleep
+  esp_deep_sleep_start();  
 }
 
 void setup() {
+  setCpuFrequencyMhz(80);
   Serial.begin(115200);
-  while(!Serial){};
+  Serial.println("LoRa Network Node Starting...");
+  Serial.printf("Node ID: %04X\n", myNodeID);
+
+  bool fsok = LittleFS.begin(true);
+  Serial.printf_P(PSTR("\nFS init: %s\n"), fsok ? PSTR("ok") : PSTR("fail!"));
+
+  SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
   
-  Serial.println("=== BME280 LoRa Sensor Node Starting ===");
-  Serial.printf("Node ID: %s\n", NODE_ID.c_str());
+  Serial.print("CPU Frequency: ");
+  Serial.print(getCpuFrequencyMhz());
+  Serial.println(" MHz");
   
-  // WiFi setup for time sync only
-  WiFiManager wm;
-  bool res = wm.autoConnect((NODE_ID + "_Setup").c_str(), "password");
+  // Power management optimizations
+  eora_disable_wifi();
+  eora_disable_bluetooth();
+  eora_disable_adc();
+
+  // Check if this is a power-on reset
+  if (esp_reset_reason() == ESP_RST_POWERON) {
+    printf("Power-on reset detected - initializing...\n");
+    setupLoRa();
+    goToSleep(); // Conserve power until Preamble arrives
+  }
+
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER){
+    Serial.println("⏰ Woke from timer - sensor reading time");
+    setupLoRa();
+    goToSleep();
+  }
   
-  if (!res) {
-    Serial.println("Failed to connect to WiFi - continuing without time sync");
-  } else {
-    Serial.println("WiFi connected - syncing time...");
-    configTime(0, 0, ntpServer1, ntpServer2);
-    setenv("TZ", TZ, 3);
-    tzset();
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
+    Serial.println("📡 Woke from LoRa packet");
+    setupLoRa();
+    taskDispatcher();
+  }
+
+  // 🔥 NEW: Check if this is a power-on reset (compile/upload/reset)
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_UNDEFINED) {
+    Serial.println("Power-on reset - initializing and going to sleep");
+    setupLoRa();
+    return;
+
+    Serial.println("Going to sleep - wake on first packet");
+    goToSleep();
+  }
+
+  // This should rarely execute now
+  Serial.println("Unknown wake reason - staying awake");
+}
+
+void loop() {
+  bool stopRepeating = true;
+
+  Serial.println("Entering loop");
+  stopRepeating = false;  //Resets on wake up
     
-    Serial.print("Waiting for NTP sync");
-    while (time(nullptr) < 100000ul) {
-      Serial.print(".");
-      delay(1000);
+
+  //check if the flag is set
+    if (receivedFlag)
+    {
+        // disable the interrupt service routine while
+        // processing the data
+        enableInterrupt = false;
+
+        // reset flag
+        receivedFlag = false;
+
+        // you can read received data as an Arduino String
+        String str;
+        int state = radio.readData(str);
+
+        // you can also read received data as byte array
+        /*
+          byte byteArr[8];
+          int state = radio.readData(byteArr, 8);
+        */
+
+        if (state == RADIOLIB_ERR_NONE)
+        {
+            // packet was successfully received
+            Serial.println(F("[SX126x] Received packet!"));
+
+            // print data of the packet
+            Serial.print(F("[SX126x] Data:\t\t"));
+            Serial.println(str);
+            //parseString(str);
+            //taskDispatcher(task, timestamp);
+
+            // print RSSI (Received Signal Strength Indicator)
+            Serial.print(F("[SX126x] RSSI:\t\t"));
+            Serial.print(radio.getRSSI());
+            Serial.println(F(" dBm"));
+
+            // print SNR (Signal-to-Noise Ratio)
+            Serial.print(F("[SX126x] SNR:\t\t"));
+            Serial.print(radio.getSNR());
+            Serial.println(F(" dB"));
+        }
+        else if (state == RADIOLIB_ERR_CRC_MISMATCH)
+        {
+            // packet was received, but is malformed
+            Serial.println(F("CRC error!"));
+        }
+        else
+        {
+            // some other error occurred
+            Serial.print(F("failed, code "));
+            Serial.println(state);
+        }
+
+        // put module back to listen mode
+        //radio.startReceive();  //example
+        // Set up the radio for duty cycle receiving
+        //radio.startReceiveDutyCycleAuto();
+        radio.startReceiveDutyCycleAuto();
+
+        // we're ready to receive more packets,
+        // enable interrupt service routine
+        enableInterrupt = true;
     }
-    Serial.println("\nTime synchronized!");
+}
+
+void print_reset_reason(RESET_REASON reason) {
+  switch (reason) {
+    case 1:
+      Serial.println("POWERON_RESET");
+      break;
+    case 3:
+      Serial.println("SW_RESET");
+      break;
+    case 4:
+      Serial.println("OWDT_RESET");
+      break;
+    case 5:
+      Serial.println("DEEPSLEEP_RESET");
+      break;
+    case 6:
+      Serial.println("SDIO_RESET");
+      break;
+    case 7:
+      Serial.println("TG0WDT_SYS_RESET");
+      break;
+    case 8:
+      Serial.println("TG1WDT_SYS_RESET");
+      break;
+    case 9:
+      Serial.println("RTCWDT_SYS_RESET");
+      break;
+    case 10:
+      Serial.println("INTRUSION_RESET");
+      break;
+    case 11:
+      Serial.println("TGWDT_CPU_RESET");
+      break;
+    case 12:
+      Serial.println("SW_CPU_RESET");
+      break;
+    case 13:
+      Serial.println("RTCWDT_CPU_RESET");
+      break;
+    case 14:
+      Serial.println("EXT_CPU_RESET");
+      break;
+    case 15:
+      Serial.println("RTCWDT_BROWN_OUT_RESET");
+      break;
+    case 16:
+      Serial.println("RTCWDT_RTC_RESET");
+      break;
+    default:
+      Serial.println("NO_MEAN");
   }
-  
-  // Initialize hardware
-  initBoard();
-  
-  // Initialize BME280
-  Wire.begin();
-  if (!bme.begin(0x76) && !bme.begin(0x77)) {
-    Serial.println("❌ Could not find BME280 sensor!");
-    Serial.println("Check wiring and I2C address");
-  } else {
-    Serial.println("✅ BME280 sensor initialized");
-  }
-  
-  // Initialize LoRa radio
-  Serial.println("=== CONFIGURING LoRa SENSOR NODE ===");
-  
-  int state = radio.begin(
-    radioFreq,                          
-    LORA_BANDWIDTH,                     
-    LORA_SPREADING_FACTOR,              
-    LORA_CODINGRATE,                    
-    RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
+}
