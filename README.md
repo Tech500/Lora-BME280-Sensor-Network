@@ -1,4 +1,4 @@
-# 🌡️ LoRa BME280 Sensor Network --Project in progress; still making refinements.
+# 🌡️ LoRa BME280 Sensor Network --Project in progress; still making refinements.  Early, Beta...
 
 **A complete, production-ready LoRa sensor network solution for environmental monitoring**
 
@@ -218,3 +218,4 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
