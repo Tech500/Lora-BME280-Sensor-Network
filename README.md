@@ -1,4 +1,4 @@
-# 🌡️ LoRa BME280 Sensor Network
+# 🌡️ LoRa BME280 Sensor Network --Project in progress; still making refinements.
 
 **A complete, production-ready LoRa sensor network solution for environmental monitoring**
 
@@ -15,7 +15,7 @@ This project provides a complete LoRa-based sensor network for monitoring temper
 
 ### ⭐ Key Features
 
-- **🔋 Ultra Low Power**: Sensor nodes consume only 20-22µA in deep sleep
+- **🔋 Ultra Low Power**: Sensor nodes baseline only 20-22µA in deep sleep
 - **📡 Long Range**: LoRa communication up to several kilometers  
 - **🌐 Cloud Ready**: Works with any hosting provider (Digital Ocean, AWS, etc.)
 - **🛡️ CGNAT Friendly**: No port forwarding needed - perfect for T-Mobile Internet
@@ -215,5 +215,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ---
 
 **Made with ❤️ by the open source IoT community**
+
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
