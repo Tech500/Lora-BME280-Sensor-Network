@@ -1,4 +1,4 @@
-# NPPK II Images
+# Nordic Power Profiler Kit II  "EoRa PI" Observations
 
 ## Overview
 This document contains the latest NPPK II images for documentation and reference.
@@ -26,4 +26,5 @@ This document contains the latest NPPK II images for documentation and reference
 ---
 
 *Last updated: 09/11/2025
+
 
