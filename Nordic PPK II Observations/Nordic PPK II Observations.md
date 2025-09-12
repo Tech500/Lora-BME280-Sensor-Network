@@ -1,4 +1,4 @@
-# Nordic Power Profiler Kit II  "EoRa PI" Observations
+# Nordic PPK II Observations
 
 ## Overview
 This document contains the latest NPPK II images for documentation and reference.
@@ -7,13 +7,6 @@ This document contains the latest NPPK II images for documentation and reference
 
 ## Image 1
 ![NPPK II Image 1](https://raw.githubusercontent.com/Tech500/Lora-BME280-Sensor-Network/main/Norkic%20PPK%20II%20Observations/EoRa%20PI%20power-on.png)
-
-
-
-
-
-
-
 
 ---
 
@@ -33,6 +26,7 @@ This document contains the latest NPPK II images for documentation and reference
 ---
 
 *Last updated: 09/12/2025
+
 
 
 
