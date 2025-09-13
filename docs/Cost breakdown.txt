@@ -1,0 +1,7 @@
+## 💰 **Cost Breakdown**
+- **Per sensor node**: ~$38 (including battery & enclosure)
+- **Gateway**: ~$25 (EoRa Pi + power supply)
+- **Cloud server**: $5/month (Digital Ocean)
+- **Total for 10-node network**: ~$410 one-time + $5/month
+
+**Compare to commercial**: $2000-5000+ for equivalent system!
