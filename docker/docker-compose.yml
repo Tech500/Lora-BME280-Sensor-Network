@@ -5,7 +5,7 @@ services:
     container_name: lora-sensor-api-v4
     restart: unless-stopped
     ports:
-      - "5001:5000"
+      - "5000:5000"
     environment:
       - TZ=${TIMEZONE:-UTC}
       - CONFIG_PATH=/app/config/settings.json
@@ -20,3 +20,4 @@ services:
 networks:
   lora-network:
     driver: bridge
+
