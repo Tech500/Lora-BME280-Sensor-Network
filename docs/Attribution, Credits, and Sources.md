@@ -34,9 +34,9 @@ Your README could say:
   AI development assistance: Claude (Anthropic) 
   
   Part of the open source LoRa BME280 Network project
-  https://github.com/your-username/lora-bme280-network
+  https://github.com/tech500/lora-bme280-sensor-network
   
-  Hardware: EoRa-S3-900TB from EbyeIoT.com (EoRa Pi Foundation)
+  Hardware: EoRa-S3-900TB from EbyeIoT.com 
   
   MIT License - See LICENSE file for details
 */
@@ -62,7 +62,7 @@ Your README could say:
 - **EoRa-S3-900TB** from EbyeIoT.com (EoRa Pi Foundation)
 - ESP32-S3 with integrated SX1262 LoRa
 - WiFi connectivity for internet access
-- 5V power supply
+- 5V USB power supply
 
 *Note: This project will work with other ESP32+LoRa combinations, but has been specifically developed and tested on the EoRa Pi platform.*
 
@@ -243,5 +243,6 @@ MIT - Free for personal and commercial use
 3. **Give Credit**: Mention hardware platforms and libraries used
 4. **Stay Humble**: Acknowledge the community that helped you learn
 5. **Be Generous**: MIT license allows maximum community benefit
+
 
 This approach shows transparency while highlighting your expertise and hard work! 🌟
