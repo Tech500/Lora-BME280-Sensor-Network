@@ -1,5 +1,7 @@
 # 🌡️ LoRa BME280 Sensor Network --Project in progress; still making refinements.  Early, Beta...
 
+"Original concept and development: William Lucid, with AI development assistance for code architecture and documentation. Hardware platform: EoRa-S3-900TB from EbyeIoT.com"
+
 **A complete, production-ready LoRa sensor network solution for environmental monitoring**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -239,6 +241,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
