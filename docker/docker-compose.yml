@@ -2,7 +2,7 @@ version: '3.8'
 services:
   lora-api:
     build: .
-    container_name: lora-sensor-api-v4
+    container_name: lora-sensor-api
     restart: unless-stopped
     ports:
       - "5000:5000"
@@ -20,4 +20,5 @@ services:
 networks:
   lora-network:
     driver: bridge
+
 
