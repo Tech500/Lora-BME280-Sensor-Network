@@ -159,7 +159,7 @@ William
 ## TL;DR: 
 Built a complete LoRa sensor network achieving actual 20-22µA sleep current (not mA!), works with T-Mobile/Starlink CGNAT, includes everything from PCB to cloud deployment. MIT licensed.
 
-**GitHub**: https://github.com/your-username/lora-bme280-network
+**GitHub**: https://github.com/tech500/lora-bme280-network
 
 ## The Problem I Solved:
 - **Power**: Most "low power" ESP32 projects consume mA in sleep. I achieved µA.
@@ -230,7 +230,7 @@ This project demonstrates modern development practices - combining human experti
 Provides the maker community with a complete, professional-grade IoT solution that works with modern internet infrastructure. Fills gap between simple tutorials and expensive commercial solutions.
 
 ## Repository:
-https://github.com/your-username/lora-bme280-network
+https://github.com/tech500/lora-bme280-network
 
 ## License:
 MIT - Free for personal and commercial use
@@ -246,3 +246,4 @@ MIT - Free for personal and commercial use
 
 
 This approach shows transparency while highlighting your expertise and hard work! 🌟
+
