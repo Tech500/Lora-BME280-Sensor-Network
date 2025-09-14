@@ -108,6 +108,22 @@ python app.py
 
 ## 🛠️ Hardware Requirements
 
+## 🛠️ Recommended Hardware
+
+### **Gateway (Tested Configuration)**
+- **EoRa-S3-900TB** from EbyeIoT.com (EoRa Pi Foundation)
+- ESP32-S3 with integrated SX1262 LoRa
+- WiFi connectivity for internet access
+- 5V USB power supply
+
+*Note: This project will work with other ESP32+LoRa combinations, but has been specifically developed and tested on the EoRa Pi platform.*
+
+### **Alternative Hardware**
+- Heltec WiFi LoRa 32 V3
+- TTGO LoRa32
+- LilyGO T-Beam
+- Any ESP32 + SX126x/SX127x combination
+
 ### Gateway (Required: 1)
 - ESP32 with LoRa (EoRa-S3-900TB recommended)
 - WiFi connectivity
@@ -218,4 +234,5 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
