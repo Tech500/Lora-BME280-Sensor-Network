@@ -1,7 +1,14 @@
 /*
-  LoRa Gateway v9 - Modified for NTP-based timing and proper node response handling
-  Mains-powered coordinator for LoRa sensor network
-  Sends synchronized commands and uploads data to API
+  LoRa BME280 Sensor Network
+  Original concept and development: William Lucid
+  AI development assistance: Claude (Anthropic) 
+  
+  Part of the open source LoRa BME280 Network project
+  https://github.com/tech500/lora-bme280-sensor-network
+  
+  Hardware: EoRa-S3-900TB from EbyeIoT.com 
+  
+  MIT License - See LICENSE file for details
 */
 
 #include <RadioLib.h>
@@ -492,3 +499,4 @@ void loop() {
   
   delay(100); // Small delay to prevent tight loop
 }
+
