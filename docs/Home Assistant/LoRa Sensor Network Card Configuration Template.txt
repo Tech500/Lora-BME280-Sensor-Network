@@ -1,0 +1,72 @@
+# LoRa Sensor Network Card Configuration Template
+# Copy this configuration to your Home Assistant Lovelace dashboard
+
+type: custom:lora-sensor-card
+title: "LoRa Environmental Sensors"
+
+# REQUIRED: Replace with your LoRa Gateway IP address and port
+gateway_url: "http://192.168.1.100:5001"
+
+# Display Settings
+settings:
+  # Refresh interval in seconds (30-300 recommended)
+  refresh_interval: 30
+  
+  # Temperature unit (F or C)
+  temperature_unit: "F"
+  
+  # Show additional sensor information
+  show_battery_levels: true
+  show_signal_strength: true
+  show_node_ids: true
+  show_timestamps: true
+  
+  # Layout options
+  compact_mode: false          # Set to true for many nodes (10+)
+  nodes_per_row: 3            # Number of node tiles per row
+  card_height: "auto"         # auto, or specific height like "400px"
+  
+  # Status thresholds
+  offline_threshold: 300      # Seconds before marking node offline
+  low_battery_threshold: 3.0  # Voltage below this shows warning
+  weak_signal_threshold: -90  # RSSI below this shows warning
+  
+  # Visual preferences
+  show_grid_lines: true
+  show_last_update: true
+  theme_color: "blue"         # blue, green, red, or auto
+
+# Optional: Custom node naming (replace node IDs with friendly names)
+# node_names:
+#   "1001": "Living Room"
+#   "1002": "Bedroom"
+#   "1003": "Kitchen"
+#   "1004": "Basement"
+
+# Optional: Room grouping (groups nodes by location)
+# room_groups:
+#   "Upstairs":
+#     - "1001"
+#     - "1002"
+#   "Downstairs":
+#     - "1003"
+#     - "1004"
+
+# Optional: Hide specific nodes
+# hidden_nodes:
+#   - "1005"  # Test node to hide from display
+
+# Advanced Options (usually not needed)
+advanced:
+  # API timeout in seconds
+  api_timeout: 5
+  
+  # Retry failed requests
+  retry_attempts: 2
+  
+  # Enable debug logging
+  debug_mode: false
+  
+  # Custom CSS styling
+  # custom_css: |
+  #   .lora-card { border-radius: 10px; }
