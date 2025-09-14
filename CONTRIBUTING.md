@@ -34,7 +34,7 @@ Use GitHub Issues with the feature request template. Consider:
 
 - Help newcomers get started
 
-  ## AI Collaboration Policy**
+## AI Collaboration Policy
 
 This project was developed through **human-AI collaboration**:
 
@@ -47,5 +47,6 @@ This project was developed through **human-AI collaboration**:
 - Always test your code on real hardware
 - Ensure you understand what you're submitting
 - Mention if you used AI assistance in complex contributions
+
 
 
