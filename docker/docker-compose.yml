@@ -1,0 +1,22 @@
+version: '3.8'
+services:
+  lora-api:
+    build: .
+    container_name: lora-sensor-api-v4
+    restart: unless-stopped
+    ports:
+      - "5001:5000"
+    environment:
+      - TZ=${TIMEZONE:-UTC}
+      - CONFIG_PATH=/app/config/settings.json
+      - DATABASE_PATH=/app/data/lora_sensors.db
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./static:/app/static
+    networks:
+      - lora-network
+networks:
+  lora-network:
+    driver: bridge
