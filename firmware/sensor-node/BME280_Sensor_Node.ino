@@ -1,3 +1,15 @@
+/*
+  LoRa BME280 Sensor Network
+  Original concept and development: William Lucid
+  AI development assistance: Claude (Anthropic) 
+  
+  Part of the open source LoRa BME280 Network project
+  https://github.com/tech500/lora-bme280-sensor-network
+  
+  Hardware: EoRa-S3-900TB from EbyeIoT.com 
+  
+  MIT License - See LICENSE file for details
+*/
 //#define RADIOLIB_DEBUG
 
 #include <RadioLib.h>
@@ -489,3 +501,4 @@ void print_reset_reason(RESET_REASON reason) {
       Serial.println("NO_MEAN");
   }
 }
+
