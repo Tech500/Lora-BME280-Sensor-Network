@@ -206,13 +206,18 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - ✅ **No warranty or liability**
 - ✅ **Attribution appreciated but not required**
 
-## 🙏 **Acknowledgments**
+## 🙏 **Acknowledgments & Credits**
 
-- **RadioLib** - Excellent LoRa library for Arduino
-- **BME280** - Reliable environmental sensor from Bosch
-- **Flask** - Simple and powerful web framework
+- **Original Concept & Development**: William Lucid
+- **AI Development Assistance**: Claude (Anthropic) - Helped with code architecture, documentation, and open source best practices
+- **Hardware Platform**: EoRa Pi Foundation (EoRa-S3-900TB from EbyeIoT.com)
+- **RadioLib**: Excellent LoRa library for Arduino by Jan Gromeš
+- **BME280**: Environmental sensor from Bosch Sensortec
+- **Flask**: Web framework by Pallets Projects
+- **Community**: Arduino, ESP32, and LoRa communities worldwide
 - **Digital Ocean** - Affordable and reliable cloud hosting
-- **Arduino Community** - Amazing ecosystem and support
+
+*This project demonstrates the power of human creativity enhanced by AI collaboration.*
 
 ## 📞 **Support & Community**
 
@@ -234,5 +239,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
