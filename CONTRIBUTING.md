@@ -31,4 +31,19 @@ Use GitHub Issues with the feature request template. Consider:
 - Be welcoming and inclusive
 - Respect different viewpoints
 - Focus on constructive feedback
+
 - Help newcomers get started
+
+  ## 🤖 **AI Collaboration Policy**
+
+This project was developed through **human-AI collaboration**:
+
+- **Human Leadership**: All creative decisions, hardware testing, and final implementation by William Lucid
+- **AI Assistance**: Code structure suggestions, documentation formatting, and best practices guidance
+- **Transparency**: We believe in transparent development practices
+- **Community First**: This remains a human-driven, community-focused project
+
+**For Contributors**: Feel free to use AI tools to help with your contributions, but please:
+- Always test your code on real hardware
+- Ensure you understand what you're submitting
+- Mention if you used AI assistance in complex contributions
