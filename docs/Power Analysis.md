@@ -105,14 +105,15 @@ t_\text{hours} = \frac{3000}{0.0936} \approx 32{,}051\ \text{h} \approx 1{,}335\
 Current (mA)
 ^
 |
-46 ┤ ████ <-- init spike (~50ms)
+46 ┤ ████ <-- init spike (~50ms)  
 |
-6.91 ┤ █ <-- listen pulse (~9.91ms, repeats each 1s)
+6.91 ┤ █ <-- listen pulse (~9.91ms, repeats each 1s)  
 |
-0.025 ┤───────────── <-- baseline sleep (~25µA)
+0.025 ┤───────────── <-- baseline sleep (~25µA)  
 |
-+-------------------------------------------------> Time
-t0 1s 2s 3s ... 840s (~14min)
++-------------------------------------------------> Time  
+t0 1s 2s 3s ... 840s (~14min)  
+
 
 ---
 
@@ -126,3 +127,4 @@ t0 1s 2s 3s ... 840s (~14min)
 ---
 
 *End of Document*
+
