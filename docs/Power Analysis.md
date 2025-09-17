@@ -102,7 +102,7 @@ t_\text{hours} = \frac{3000}{0.0936} \approx 32{,}051\ \text{h} \approx 1{,}335\
 - **Listen pulse:** low-duty RX  
 - **Baseline sleep:** dominates average current
 
-Current (mA)
+Current (mA) 
 ^
 |
 46 ┤ ████ <-- init spike (~50ms)  
@@ -127,4 +127,5 @@ t0 1s 2s 3s ... 840s (~14min)
 ---
 
 *End of Document*
+
 
