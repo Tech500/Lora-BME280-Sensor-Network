@@ -11,6 +11,25 @@
   MIT License - See LICENSE file for details
 */
 
+/*
+  LoRa BME280 Sensor Network
+  Original concept and development: William Lucid
+  AI development assistance: Claude (Anthropic) 
+  
+  Part of the open source LoRa BME280 Network project
+  https://github.com/tech500/lora-bme280-sensor-network
+  
+  Hardware: EoRa-S3-900TB from EbyeIoT.com 
+  
+  MIT License - See LICENSE file for details
+*/
+
+/*
+  LoRa Gateway v9 - Modified for NTP-based timing and proper node response handling
+  Mains-powered coordinator for LoRa sensor network
+  Sends synchronized commands and uploads data to API
+*/
+
 #include <RadioLib.h>
 #define EoRa_PI_V1
 
@@ -27,6 +46,9 @@ const char* ssid = "R2D2";
 const char* password = "sissy4357";
 const char* apiUrl = "http://192.168.12.146:5001/api/sensor-data";
 
+// Are we currently connected?
+boolean connected = false;
+
 // ===== NTP CONFIGURATION =====
 WiFiUDP udp;
 const int udpPort = 1337;
@@ -37,8 +59,9 @@ const char * udpAddress2 = "time.nist.gov";
 int DOW, MONTH, DATE, YEAR, HOUR, MINUTE, SECOND;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 char strftime_buf[64];
-String dtStamp(strftime_buf);
+String timestamp(strftime_buf);
 time_t tnow = 0;
+String lastUpdate;
 
 // ===== LORA CONFIGURATION =====
 #define RADIO_SCLK_PIN 5
@@ -66,7 +89,7 @@ struct SensorNode {
   String name;
   bool active;
   time_t lastSeen;
-  String nodeTimestamp;
+  String lastUpdate;
   float lastTemp;
   float lastHumidity;
   float lastPressure;
@@ -94,8 +117,8 @@ time_t lastStatusPrint = 0;
 // ===== PACKET RECEPTION =====
 volatile bool receivedFlag = false;
 volatile bool enableInterrupt = true;
-int16_t lastRSSI = 0;
-float lastSNR = 0;
+
+String jsonString;
 
 // ===== COMMUNICATION STATE =====
 enum CommState {
@@ -106,7 +129,53 @@ CommState currentState = IDLE;
 time_t responseWaitStart = 0;
 const int RESPONSE_TIMEOUT = 10; // 10 seconds
 
-//======== PACKET TRANSMISSION ========
+// ===== TIME FUNCTIONS (UNCHANGED) =====
+void timeConfig(){
+  configTime(0, 0, udpAddress1, udpAddress2);
+  setenv("TZ", "EST+5EDT,M3.2.0/2,M11.1.0/2", 3);   // this sets TZ to Indianapolis, Indiana
+  tzset();
+
+  //udp only send data when connected
+  if (connected)
+  {
+    //Send a packet
+    udp.beginPacket(udpAddress1, udpPort);
+    udp.printf("Seconds since boot: %u", millis() / 1000);
+    udp.endPacket();
+  }
+
+  Serial.print("wait for first valid timestamp");
+
+  while (time(nullptr) < 100000ul)
+  {
+    Serial.print(".");
+    delay(5000);
+  }
+
+  Serial.println("\nSystem Time set\n");
+
+  getDateTime();
+
+  Serial.println(timestamp);
+}
+
+String getDateTime() {
+  struct tm *ti;
+  tnow = time(nullptr);
+  ti = localtime(&tnow);
+  DOW = ti->tm_wday;
+  YEAR = ti->tm_year + 1900;
+  MONTH = ti->tm_mon + 1;
+  DATE = ti->tm_mday;
+  HOUR = ti->tm_hour;
+  MINUTE = ti->tm_min;
+  SECOND = ti->tm_sec;
+  strftime(strftime_buf, sizeof(strftime_buf), "%Y-%m-%dT%H:%M:%S",ti);
+  timestamp = strftime_buf;
+  return (timestamp);
+}
+
+// ===== PACKET TRANSMISSION =====
 void sendWORSignal() {
   String worSignal = "WOR--1234567890qwerty";
   int state = radio.transmit(worSignal);
@@ -119,12 +188,7 @@ void sendWORSignal() {
 }
 
 void sendDataCommand() {
-  time_t now = time(nullptr);
-  struct tm *timeinfo = localtime(&now);
-  char timestamp[32];
-  strftime(timestamp, sizeof(timestamp), "%a-%m-%d-%Y--%H:%M:%S", timeinfo);
-  
-  String command = String(timestamp);
+  String command = lastUpdate;  
   int state = radio.transmit(command);
   if (state == RADIOLIB_ERR_NONE) {
     Serial.printf("📤 Command sent: %s\n", command.c_str());
@@ -156,9 +220,11 @@ void connectToWiFi() {
     Serial.println("✅ WiFi connected!");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
+    connected = true;
   } else {
     Serial.println();
     Serial.println("❌ WiFi connection failed - continuing without API");
+    connected = false;
   }
 }
 
@@ -191,53 +257,108 @@ void setupLoRa() {
   radio.setDio1Action(setFlag);
 }
 
-// ===== DATA PARSING =====
-bool parseNodeResponse(const String& response, SensorNode& node) {
-  // Expected format: "1001,timestamp,temp,humidity,pressure,battery"
+// ===== IMPROVED DATA PARSING =====
+bool parseNodeResponse(const String& response, SensorNode& node, int16_t rssi, float snr) {
+  // Expected format: "1001,temp,humidity,pressure,battery" or "1001,timestamp,temp,humidity,pressure,battery"
+  
+  // Clean the response string - remove extra spaces
+  String cleanResponse = response;
+  cleanResponse.trim();
+  cleanResponse.replace(" ", "");
+  
+  // Count commas to determine format
   int commaCount = 0;
-  int lastPos = 0;
-  String values[6];
-  
-  for (int i = 0; i <= response.length(); i++) {
-    if (i == response.length() || response.charAt(i) == ',') {
-      if (commaCount < 6) {
-        values[commaCount] = response.substring(lastPos, i);
-        commaCount++;
-      }
-      lastPos = i + 1;
+  for (int i = 0; i < cleanResponse.length(); i++) {
+    if (cleanResponse.charAt(i) == ',') {
+      commaCount++;
     }
-    Serial.printf("❌ Parse error: expected 5+ values, got %d\n", commaCount);
-    Serial.printf("   Raw packet: '%s'\n", response.c_str());  // Add this line
   }
   
-  if (commaCount >= 5) { // At minimum need nodeID, temp, humidity, pressure, battery
-    // values[0] should be nodeID (already matched)
-    if (commaCount >= 6) node.nodeTimestamp = values[1];
-    
-    // Parse sensor data - adjust indices based on your node's actual format
-    int dataStartIndex = (commaCount >= 6) ? 2 : 1;
-    node.lastTemp = values[dataStartIndex].toFloat();
-    node.lastHumidity = values[dataStartIndex + 1].toFloat();
-    node.lastPressure = values[dataStartIndex + 2].toFloat();
-    node.lastBattery = values[dataStartIndex + 3].toFloat();
-    node.lastRSSI = lastRSSI;
-    node.lastSeen = time(nullptr);
-    node.missedResponses = 0;
-    return true;
+  // Need at least 4 commas for 5 values (nodeID + 4 sensor values)
+  if (commaCount < 4) {
+    Serial.printf("❌ Parse error: insufficient data - found %d commas, need 4+\n", commaCount);
+    Serial.printf("   Raw packet: '%s'\n", response.c_str());
+    return false;
   }
   
-  Serial.printf("❌ Parse error: expected 5+ values, got %d\n", commaCount);
-  Serial.printf("   Raw data: %s\n", response.c_str());
-  return false;
+  // Parse the values
+  String values[7]; // Allow extra room
+  int valueIndex = 0;
+  int startPos = 0;
+  
+  for (int i = 0; i <= cleanResponse.length(); i++) {
+    if (i == cleanResponse.length() || cleanResponse.charAt(i) == ',') {
+      if (valueIndex < 7) {
+        values[valueIndex] = cleanResponse.substring(startPos, i);
+        valueIndex++;
+      }
+      startPos = i + 1;
+    }
+  }
+  
+  // Determine if we have timestamp (6 values) or just sensor data (5 values)
+  bool hasTimestamp = (valueIndex >= 6);
+  int sensorStartIndex = hasTimestamp ? 2 : 1; // Skip nodeID and optionally timestamp
+  
+  // Validate we have enough sensor values
+  int expectedValues = hasTimestamp ? 6 : 5;
+  if (valueIndex < expectedValues) {
+    Serial.printf("❌ Parse error: expected %d values, got %d\n", expectedValues, valueIndex);
+    Serial.printf("   Raw packet: '%s'\n", response.c_str());
+    return false;
+  }
+  
+  // Extract timestamp if present
+  if (hasTimestamp && values[1].length() > 0) {
+    node.lastUpdate = values[1];
+  }
+  
+  // Parse sensor data with validation
+  bool parseSuccess = true;
+  
+  // Temperature
+  float temp = values[sensorStartIndex].toFloat();
+  if (temp < -50 || temp > 100) { // Reasonable range check
+    Serial.printf("⚠️  Warning: Temperature out of range: %.1f°C\n", temp);
+  }
+  node.lastTemp = temp;
+  
+  // Humidity
+  float humidity = values[sensorStartIndex + 1].toFloat();
+  if (humidity < 0 || humidity > 100) {
+    Serial.printf("⚠️  Warning: Humidity out of range: %.1f%%\n", humidity);
+  }
+  node.lastHumidity = humidity;
+  
+  // Pressure
+  float pressure = values[sensorStartIndex + 2].toFloat();
+  if (pressure < 800 || pressure > 1200) {
+    Serial.printf("⚠️  Warning: Pressure out of range: %.1fhPa\n", pressure);
+  }
+  node.lastPressure = pressure;
+  
+  // Battery
+  float battery = values[sensorStartIndex + 3].toFloat();
+  if (battery < 2.0 || battery > 5.0) {
+    Serial.printf("⚠️  Warning: Battery voltage out of range: %.2fV\n", battery);
+  }
+  node.lastBattery = battery;
+  
+  // Store this packet's specific RSSI/SNR values with the node
+  node.lastRSSI = rssi;
+  node.lastSeen = time(nullptr);
+  node.missedResponses = 0;
+  
+  return parseSuccess;
 }
 
 // ===== API FUNCTIONS =====
 bool uploadToAPI(const SensorNode& node) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.printf("📝 No WiFi - logging %s: %.1f°C, %.1f%%, %.1fhPa, %.2fV\n", 
+    Serial.printf("📴 No WiFi - logging %s: %.1f°C, %.1f%%, %.1fhPa, %.2fV\n", 
                   node.name.c_str(), node.lastTemp, node.lastHumidity, 
                   node.lastPressure, node.lastBattery);
-    return true;
+    return true; // Return true so we don't treat this as an error
   }
   
   HTTPClient http;
@@ -253,14 +374,16 @@ bool uploadToAPI(const SensorNode& node) {
   doc["pressure_hpa"] = node.lastPressure;
   doc["battery_voltage"] = node.lastBattery;
   doc["rssi"] = node.lastRSSI;
-  doc["timestamp"] = node.nodeTimestamp;
+  doc["timestamp"] = lastUpdate; 
   doc["collected_by_gateway"] = true;
   doc["gateway_ip"] = WiFi.localIP().toString();
+
+  Serial.println("doc  " + lastUpdate);
   
-  String jsonString;
   serializeJson(doc, jsonString);
   
   Serial.printf("🌐 Uploading %s data to API\n", node.name.c_str());
+  Serial.println(jsonString);
   
   int httpResponseCode = http.POST(jsonString);
   
@@ -270,13 +393,17 @@ bool uploadToAPI(const SensorNode& node) {
     http.end();
     return true;
   } else {
-    Serial.printf("❌ API upload failed: %d\n", httpResponseCode);
+    Serial.printf("❌ API upload failed: HTTP %d\n", httpResponseCode);
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.printf("   Response: %s\n", response.c_str());
+    }
     http.end();
     return false;
   }
 }
 
-// ===== RESPONSE HANDLING =====
+// ===== IMPROVED RESPONSE HANDLING =====
 void processIncomingData() {
   if (!receivedFlag) return;
   
@@ -287,32 +414,46 @@ void processIncomingData() {
   int state = radio.readData(receivedData);
   
   if (state == RADIOLIB_ERR_NONE) {
-    lastRSSI = radio.getRSSI();
-    lastSNR = radio.getSNR();
+    // Get RSSI and SNR for this specific packet
+    int16_t packetRSSI = radio.getRSSI();
+    float packetSNR = radio.getSNR();
     
     Serial.printf("📥 Received: %s (RSSI: %d dBm, SNR: %.1f dB)\n", 
-                  receivedData.c_str(), lastRSSI, lastSNR);
+                  receivedData.c_str(), packetRSSI, packetSNR);
+    
+    // Skip processing if packet is empty or too short
+    if (receivedData.length() < 3) {
+      Serial.printf("⚠️  Empty or too short packet, ignoring\n");
+      radio.startReceive();
+      enableInterrupt = true;
+      return;
+    }
     
     // Find which node responded by checking nodeID prefix
     bool nodeFound = false;
     for (int i = 0; i < numNodes; i++) {
-      String nodeIDStr = String(knownNodes[i].nodeID, HEX);
-      nodeIDStr.toUpperCase(); // Ensure uppercase for comparison
+      // Check both hex and decimal representations
+      String nodeIDHex = String(knownNodes[i].nodeID, HEX);
+      nodeIDHex.toUpperCase();
+      String nodeIDDec = String(knownNodes[i].nodeID);
       
-      if (receivedData.startsWith(nodeIDStr) || 
-          receivedData.startsWith(String(knownNodes[i].nodeID))) {
+      if (receivedData.startsWith(nodeIDHex) || receivedData.startsWith(nodeIDDec)) {
         
-        if (parseNodeResponse(receivedData, knownNodes[i])) {
-          Serial.printf("📊 %s: %.1f°C, %.1f%%, %.1fhPa, %.2fV\n",
+        // Pass the packet-specific RSSI/SNR to the parser
+        if (parseNodeResponse(receivedData, knownNodes[i], packetRSSI, packetSNR)) {
+          Serial.printf("📊 %s: %.1f°C, %.1f%%, %.1fhPa, %.2fV (RSSI: %ddBm)\n",
                         knownNodes[i].name.c_str(), 
                         knownNodes[i].lastTemp,
                         knownNodes[i].lastHumidity, 
                         knownNodes[i].lastPressure,
-                        knownNodes[i].lastBattery);
+                        knownNodes[i].lastBattery,
+                        knownNodes[i].lastRSSI);
           
           uploadToAPI(knownNodes[i]);
           totalResponses++;
           nodeFound = true;
+        } else {
+          Serial.printf("❌ Failed to parse data from %s\n", knownNodes[i].name.c_str());
         }
         break;
       }
@@ -360,26 +501,6 @@ void printGatewayStatus() {
   Serial.println("=======================\n");
 }
 
-// ===== NTP TIME FUNCTIONS =====
-String getDateTime() {
-  struct tm *ti;
-  tnow = time(nullptr);
-  ti = localtime(&tnow);
-  DOW = ti->tm_wday;
-  YEAR = ti->tm_year + 1900;
-  MONTH = ti->tm_mon + 1;
-  DATE = ti->tm_mday;
-  HOUR = ti->tm_hour;
-  MINUTE = ti->tm_min;
-  SECOND = ti->tm_sec;
-  strftime(strftime_buf, sizeof(strftime_buf), "%a %m %d %Y  %H:%M:%S", localtime(&tnow));
-  dtStamp = strftime_buf;
-  dtStamp.replace(" ", "-");
-  return (dtStamp);
-}
-
-
-/*
 void checkMissedNodes() {
   time_t now = time(nullptr);
   for (int i = 0; i < numNodes; i++) {
@@ -392,31 +513,13 @@ void checkMissedNodes() {
     }
   }
 }
-*/
-
 
 // ===== MAIN SETUP =====
 void setup() {
   Serial.begin(115200);
   while(!Serial){};
 
-  Serial.println("\n🚀 LoRa Gateway v13.0 Starting...");
-  
-  // Configure NTP
-  configTime(0, 0, udpAddress1, udpAddress2);
-  setenv("TZ", TZ, 3);
-  tzset();
-  
-  // Wait for NTP sync
-  Serial.print("⏰ Waiting for NTP sync");
-  time_t now = time(nullptr);
-  while (now < 8 * 3600 * 2) {
-    delay(500);
-    Serial.print(".");
-    now = time(nullptr);
-  }
-  Serial.println();
-  Serial.printf("✅ NTP synchronized: %s", ctime(&now));
+  Serial.println("\n🚀 LoRa Gateway v0.9 Starting...");
   
   pinMode(BOARD_LED, OUTPUT);
   digitalWrite(BOARD_LED, LOW);
@@ -426,24 +529,34 @@ void setup() {
   
   // Setup LoRa
   setupLoRa();
-  
+
+  // Configure time (unchanged)
+  timeConfig();
+
   // Start in receive mode
   radio.startReceive();
   enableInterrupt = true;
   
   Serial.println("🎯 Gateway Ready!");
   Serial.printf("📡 Monitoring %d sensor nodes\n", numNodes);
-  Serial.println("⏱️  Collection every 3 minutes using NTP timing");
-  Serial.println("🔄 Two-packet transmission: WOR preamble + 250ms + data command");
+  Serial.println("⏱️  Collection every 15 minutes using NTP timing");
+  Serial.println("📦 Two-packet transmission: WOR preamble + 250ms + data command");
   
-  printGatewayStatus();
+  printGatewayStatus();  
 }
 
 // ===== MAIN LOOP =====
 void loop() {
-  // Update current time
-  getDateTime();
   time_t now = time(nullptr);
+
+  getDateTime();
+
+  if(MINUTE % 15 == 0 && SECOND == 0) {
+    lastUpdate = timestamp; 
+    Serial.print("lastUpdate:  ");
+    Serial.println(lastUpdate);
+    Serial.flush();
+  }
   
   // Always process incoming data if available
   processIncomingData();
@@ -451,14 +564,15 @@ void loop() {
   // Handle state machine
   switch (currentState) {
     case IDLE:
-      // Trigger collection at 3-minute intervals
-      if (MINUTE % 3 == 0 && SECOND < 2 && MINUTE != lastCollectionMinute) {
+      // Trigger collection at 15-minute intervals
+      if (MINUTE % 15 == 0 && SECOND == 0 && MINUTE != lastCollectionMinute) {
         Serial.printf("\n🕒 Collection trigger: %02d:%02d:%02d\n", HOUR, MINUTE, SECOND);
-        Serial.println(dtStamp);
+        Serial.println(lastUpdate);
         
         // Send wake signals
         sendWORSignal();
         delay(250);
+        // Send timestamp
         sendDataCommand();
         
         // Switch to waiting for responses
@@ -476,17 +590,18 @@ void loop() {
       if (now - responseWaitStart >= RESPONSE_TIMEOUT) {
         Serial.printf("⏰ Response timeout reached (%d seconds)\n", RESPONSE_TIMEOUT);
         Serial.printf("📈 Cycle %lu complete: %lu responses received\n", cycleCounter, totalResponses);
+        Serial.println("Cycle complete   " + lastUpdate);
         
         // Check for missed nodes
-        //checkMissedNodes();  <----------------------------------------------- enable
+        checkMissedNodes(); 
         
         currentState = IDLE;
       }
       break;
   }
-  
+
   // Print status every hour (3600 seconds)
-  if (now - lastStatusPrint >= 3600) {
+  if(MINUTE == 0 && SECOND == 0){
     printGatewayStatus();
     lastStatusPrint = now;
   }
@@ -499,4 +614,3 @@ void loop() {
   
   delay(100); // Small delay to prevent tight loop
 }
-
