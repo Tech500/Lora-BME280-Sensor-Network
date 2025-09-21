@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  lora-sensor-api:
+    image: lora-environmental-monitor:latest
+    container_name: lora-sensors
+    restart: unless-stopped
+    
+    ports:
+      - "5001:5001"    # API port
+      - "3000:3000"    # Dashboard port (if included)
+    
+    volumes:
+      # Persistent database storage
+      - ./data:/app/data
+      # Configuration files (nodes.json, settings)
+      - ./config:/app/config
+      # Log files
+      - ./logs:/app/logs
+    
+    environment:
+      # Database settings
+      - DB_PATH=/app/data/sensors.db
+      - CONFIG_PATH=/app/config
+      
+      # API settings
+      - API_PORT=5001
+      - API_HOST=0.0.0.0
+      
+      # Logging
+      - LOG_LEVEL=info
+      - LOG_PATH=/app/logs
+      
+      # Optional: Email alerts
+      - ALERT_EMAIL=your-email@example.com
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      
+      # Optional: Timezone
+      - TZ=America/New_York
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+# Optional: Add a reverse proxy for HTTPS
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   depends_on:
+  #     - lora-sensor-api
+
+volumes:
+  # Named volumes (alternative to bind mounts)
+  sensor_data:
+  sensor_config:
+  sensor_logs:
