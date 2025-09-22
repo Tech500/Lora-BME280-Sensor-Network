@@ -1,15 +1,15 @@
 # Images
 
-## Image 1 Title
-![Sensor real time data](path/to/image1.jpg)
+## Real-time Data
+![Sensor real time data](https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/dashboard/Real-Time%20Data.png)
 
-*Caption: Brief description of what this image shows*
+*Caption: Real-time list of last update from nodes*
 
 ---
 
-## Image 2 Title
-![Sensor Charts](path/to/image2.jpg)
+## Sensor Charts
+![Sensor Charts](https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/dashboard/Sensor%20Charts.png)
 
-*Caption: Brief description of what this image shows*
+*Caption: Dow-down selection of Charts --Historical Data*
 
 ---
