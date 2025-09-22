@@ -134,7 +134,7 @@ python app.py
 ### Sensor Nodes (1-100+)
 - ESP32 with LoRa module
 - BME280 temperature/humidity/pressure sensor
-- Battery pack (18650 Li-ion recommended)
+- Battery pack (LiPo4 battery pack recommended)
 - Weather-resistant enclosure
 
 ### Cloud Server
@@ -241,6 +241,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
