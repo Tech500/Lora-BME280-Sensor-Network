@@ -1,4 +1,4 @@
-# Images
+# Dashboard Images
 
 ## Real-time Data
 ![Sensor real time data](https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/dashboard/Real-Time%20Data.png)
@@ -10,6 +10,6 @@
 ## Sensor Charts
 ![Sensor Charts](https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/dashboard/Sensor%20Charts.png)
 
-*Caption: Dow-down selection of Charts --Historical Data*
+*Caption: Drop-down selection of Charts --Historical Data*
 
 ---
