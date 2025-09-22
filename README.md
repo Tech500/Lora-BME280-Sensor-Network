@@ -113,7 +113,7 @@ python app.py
 ## 🛠️ Recommended Hardware
 
 ### **Gateway (Tested Configuration)**
-- **EoRa-S3-900TB** from EbyeIoT.com (EoRa Pi Foundation)
+- **EoRa-S3-900TB** from EbyeIoT.com 
 - ESP32-S3 with integrated SX1262 LoRa
 - WiFi connectivity for internet access
 - 5V USB power supply
@@ -241,6 +241,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
