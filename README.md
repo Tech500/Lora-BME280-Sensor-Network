@@ -49,7 +49,7 @@ This project provides a complete LoRa-based sensor network for monitoring temper
 
 ```bash
 # Deploy to Digital Ocean, AWS, or any VPS
-curl -sSL https://raw.githubusercontent.com/tech500/lora-bme280-network/main/deploy.sh | bash
+curl -sSL [universal deployment](https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/deployment/Universal-deployment.sh) | bash
 ```
 
 ### Option 2: Docker Deployment
@@ -241,6 +241,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
