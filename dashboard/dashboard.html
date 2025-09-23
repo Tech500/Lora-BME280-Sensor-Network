@@ -3,8 +3,7 @@
 <head>
     <title>LoRa Sensor Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- Load Chart.js directly from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
+    <script src="/static/chart.udm.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -632,24 +631,34 @@
                 <div class="chart-section">
                     <!-- Chart Controls Container -->
                     <div class="chart-controls-container">
-                        <label for="chartSelector">Chart Type:</label>
-                        <select id="chartSelector" onchange="changeChart()">
-                            <option value="temperature" selected>Temperature (°F)</option>
+                    <label for="readingRangeSelect">Data Range:</label>
+                    <select id="readingRangeSelect" onchange="updateCharts()">
+                        <option value="25">Last 25 readings</option>
+                        <option value="50">Last 50 readings</option>
+                        <option value="100" selected>Last 100 readings</option>
+                        <option value="200">Last 200 readings</option>
+                        <option value="500">Last 500 readings</option>
+                        <option value="all">All data (72h)</option>
+                    </select>
+
+                    <label for="chartSelector">Chart Type:</label>
+                    <select id="chartSelector" onchange="changeChart()">
+                        <!-- existing options -->
+                        <option value="temperature" selected>Temperature (°F)</option>
                             <option value="humidity">Humidity (%)</option>
                             <option value="pressure">Pressure (hPa)</option>
                             <option value="battery">Battery Voltage (V)</option>
                             <option value="signal">Signal Strength (RSSI dBm)</option>
-                        </select>
+                    </select>
 
-                        <label for="chartNodeSelect">Node:</label>
-                        <select id="chartNodeSelect" onchange="updateCharts()">
-                            <option value="all">All Nodes</option>
-                        </select>
+                    <label for="chartNodeSelect">Node:</label>
+                    <select id="chartNodeSelect" onchange="updateCharts()">
+                        <option value="all">All Nodes</option>
+                    </select>
 
-                        <button onclick="updateCharts()">Refresh Chart</button>
-                        <div class="loading-spinner" id="chartLoading">Loading data...</div>
-                    </div>
-
+                    <button onclick="updateCharts()">Refresh Chart</button>
+                    <div class="loading-spinner" id="chartLoading">Loading data...</div>
+                </div>
                     <!-- Chart Display Container -->
                     <div class="chart-display-container">
                         <div class="chart-title" id="currentChartTitle">Temperature (°F)</div>
@@ -800,7 +809,16 @@
             loading.style.display = 'block';
 
             try {
-                const response = await fetch('/api/sensor-data/history?hours=72', {
+                // Get selected reading range
+                const selectedRange = document.getElementById('readingRangeSelect').value;
+                let url = '/api/sensor-data/history?hours=72';
+
+                // Add limit parameter if not "all"
+                if (selectedRange !== 'all') {
+                    url += `&limit=${selectedRange}`;
+                }
+
+                const response = await fetch(url, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
@@ -815,24 +833,32 @@
                 const result = await response.json();
 
                 if (result.success && result.data) {
-                  console.log('First data item:', result.data[0]);
-                  console.log('Timestamp fields:', Object.keys(result.data[0]).filter(key =>
-                      key.includes('time') || key.includes('stamp')));
-                   console.log('Timestamp structure:', result.data[0].timestamp);
-                        const sortedData = result.data.reverse();
-                        chartData = sortedData.map(item => ({
-                            timestamp: item.timestamp.formatted ? item.timestamp.formatted.split(' ')[1] : item.timestamp,
-                            fullTimestamp: item.timestamp || '--',
-                            gatewayTimestamp: item.timestamp.raw || item.timestamp || '--',
-                            node_id: item.node_id,
-                            temperature: item.temperature,
-                            humidity: item.humidity,
-                            pressure: item.pressure,
-                            battery_voltage: item.battery_voltage,
-                            rssi: item.rssi
-                        }));
-                        console.log('chartData sample:', chartData[0]);
-                        console.log('chartData length:', chartData.length);
+                    console.log('First data item:', result.data[0]);
+                    console.log('Timestamp fields:', Object.keys(result.data[0]).filter(key =>
+                        key.includes('time') || key.includes('stamp')));
+                    console.log('Timestamp structure:', result.data[0].timestamp);
+
+                    const sortedData = result.data.reverse();
+                    chartData = sortedData.map(item => ({
+                        timestamp: item.timestamp.formatted ? item.timestamp.formatted.split(' ')[1] : item.timestamp,
+                        fullTimestamp: item.timestamp || '--',
+                        gatewayTimestamp: item.timestamp.raw || item.timestamp || '--',
+                        node_id: item.node_id,
+                        temperature: item.temperature,
+                        humidity: item.humidity,
+                        pressure: item.pressure,
+                        battery_voltage: item.battery_voltage,
+                        rssi: item.rssi
+                    }));
+                    console.log('chartData sample:', chartData[0]);
+                    console.log('chartData length:', chartData.length);
+
+                    const selectedRange = document.getElementById('readingRangeSelect').value;
+                    if (selectedRange !== 'all' && chartData.length > parseInt(selectedRange)) {
+                        chartData = chartData.slice(0, parseInt(selectedRange));
+                        console.log('Applied limit, new chartData length:', chartData.length);
+                    }
+
                 } else {
                     console.error('Failed to load data:', result.error || 'No data available');
                     document.getElementById('currentChartTitle').textContent = 'No Data Available';
@@ -846,10 +872,9 @@
             console.log('chartData sample:', chartData[0]);
             console.log('chartData length:', chartData.length);
 
-            // ADD THIS LINE:
+            // Render the chart
             renderSingleChart();
         }
-
         function renderSingleChart() {
             const ctx = document.getElementById('singleChart').getContext('2d');
             if (currentChart) currentChart.destroy();
