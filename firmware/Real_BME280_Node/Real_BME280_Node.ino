@@ -11,6 +11,20 @@
   
   MIT License - See LICENSE file for details
 */
+
+/*
+  LoRa BME280 Sensor Network - Real BME280 Integration
+  Original concept and development: William Lucid
+  AI development assistance: Claude (Anthropic) 
+  
+  Part of the open source LoRa BME280 Network project
+  https://github.com/tech500/lora-bme280-sensor-network
+  
+  Hardware: EoRa-S3-900TB from EbyeIoT.com 
+  BME280 Library: Tyler Glenn's BME280 library
+  
+  MIT License - See LICENSE file for details
+*/
 //#define RADIOLIB_DEBUG
 
 #include <RadioLib.h>
@@ -49,11 +63,11 @@
 #define LED_OFF LOW
 
 // BME280 I2C pins for EoRa-S3-900TB
-#define BME280_SDA_PIN 1   // Adjust according to your board's I2C pins
-#define BME280_SCL_PIN 2   // Adjust according to your board's I2C pins
+#define BME280_SDA_PIN 47  // Pin 20 - GPIO47 SDA
+#define BME280_SCL_PIN 48  // Pin 19 - GPIO48 SCL
 
 // === "EoRa PI" development board LoRa configuration ==================
-#define USING_SX1262_868M  //915 MHz
+#define USING_SX1262_868M
 
 #if defined(USING_SX1268_433M)
 uint8_t txPower = 14;
@@ -497,9 +511,11 @@ void taskDispatcher() {
 //No parsing required!
 
 void wakeByTimer(){
-  // Set deep sleep timer for 14 Minutes production
-  esp_sleep_enable_timer_wakeup(840 * 1000000ULL);  // 840 seconds in microseconds
-  
+  // Set deep sleep timer for 30s test / 120s production
+  esp_sleep_enable_timer_wakeup(30 * 1000000ULL); // 30 seconds in microseconds
+  // or
+  //esp_sleep_enable_timer_wakeup(120 * 1000000ULL); // 120 seconds
+
   // Go to deep sleep - ESP32 wakes itself up after timer
   esp_deep_sleep_start();
 }
