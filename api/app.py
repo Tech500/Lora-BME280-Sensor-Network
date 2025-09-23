@@ -1,5 +1,5 @@
 # app.py - Complete Flask API with Timezone Support
-from flask import Flask, request, jsonify, render_template_string, render_templa                                                                                                             te, session, send_from_directory
+from flask import Flask, request, jsonify, render_template_string, render_template, session, send_from_directory
 from datetime import datetime
 import pytz
 import sqlite3
@@ -183,8 +183,8 @@ def update_settings():
         # Handle refresh interval (existing functionality)
         if 'refresh_interval' in data:
             refresh_interval = data.get('refresh_interval', 30)
-            if not isinstance(refresh_interval, int) or refresh_interval < 5 or                                                                                                              refresh_interval > 300:
-                return jsonify({'error': 'Refresh interval must be between 5 and                                                                                                              300 seconds'}), 400
+            if not isinstance(refresh_interval, int) or refresh_interval < 5 or refresh_interval > 300:
+                return jsonify({'error': 'Refresh interval must be between 5 and 300 seconds'}), 400
             settings['refresh_interval'] = refresh_interval
             session['refresh_interval'] = refresh_interval
 
@@ -201,7 +201,7 @@ def update_settings():
                 'message': 'Settings updated successfully'
             })
         else:
-            return jsonify({'status': 'error', 'message': 'Failed to save settin                                                                                                             gs'}), 500
+            return jsonify({'status': 'error', 'message': 'Failed to save settings'}), 500
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -234,7 +234,7 @@ def reset_settings():
                 'message': 'Settings reset to defaults'
             })
         else:
-            return jsonify({'status': 'error', 'message': 'Failed to reset setti                                                                                                             ngs'}), 500
+            return jsonify({'status': 'error', 'message': 'Failed to reset settings'}), 500
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -264,7 +264,7 @@ def receive_sensor_data():
 
         # Log when we receive the request
         receive_time = datetime.utcnow()
-        print(f"Backend received request at: {receive_time.strftime('%H:%M:%S')}                                                                                                             ")
+        print(f"Backend received request at: {receive_time.strftime('%H:%M:%S')}")
         print(f"Gateway lastUpdate: {gateway_timestamp}")
 
         # Extract sensor data
@@ -294,21 +294,21 @@ def receive_sensor_data():
 
             cursor.execute('''
                 INSERT INTO sensor_data
-                (node_id, temperature, humidity, pressure, battery_voltage, rssi                                                                                                             , snr, timestamp)
+                (node_id, temperature, humidity, pressure, battery_voltage, rssi, snr, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (node_id, temperature, humidity, pressure, battery_voltage, rss                                                                                                             i, snr, sqlite_timestamp))
+            ''', (node_id, temperature, humidity, pressure, battery_voltage, rssi, snr, sqlite_timestamp))
         else:
             print("No gateway timestamp, using server time")
             cursor.execute('''
                 INSERT INTO sensor_data
-                (node_id, temperature, humidity, pressure, battery_voltage, rssi                                                                                                             , snr)
+                (node_id, temperature, humidity, pressure, battery_voltage, rssi, snr)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (node_id, temperature, humidity, pressure, battery_voltage, rss                                                                                                             i, snr))
+            ''', (node_id, temperature, humidity, pressure, battery_voltage, rssi, snr))
 
         conn.commit()
 
         # Verify what was actually stored
-        cursor.execute('SELECT timestamp FROM sensor_data WHERE id = last_insert                                                                                                             _rowid()')
+        cursor.execute('SELECT timestamp FROM sensor_data WHERE id = last_insert_rowid()')
         stored_timestamp = cursor.fetchone()[0]
         print(f"Actually stored in DB: {stored_timestamp}")
 
@@ -351,9 +351,9 @@ def get_latest_sensor_data():
         latest_data = []
 
         for row in rows:
-            # Don't use format_timestamp_for_user - it's causing the malformed o                                                                                                             utput
-            # Just clean up the double space and use the stored timestamp direct                                                                                                             ly
-            clean_timestamp = row['timestamp'].replace('  ', ' ')  # Remove doub                                                                                                             le space
+            # Don't use format_timestamp_for_user - it's causing the malformed output
+            # Just clean up the double space and use the stored timestamp directly
+            clean_timestamp = row['timestamp'].replace('  ', ' ')  # Remove double space
 
             # Convert temperature back to Fahrenheit for display
             temp_f = None
@@ -390,6 +390,10 @@ def get_sensor_history():
     try:
         node_id = request.args.get('node_id')
         hours = int(request.args.get('hours', 24))
+        limit = request.args.get('limit', type=int)
+
+        print(f"DEBUG: hours={hours}, limit={limit}")  # ADD THIS LINE
+
         user_tz = get_user_timezone()
 
         conn = sqlite3.connect(DATABASE_PATH)
@@ -401,6 +405,10 @@ def get_sensor_history():
             WHERE timestamp >= datetime('now', '-{} hours')
         '''.format(hours)
 
+        if limit and limit > 0:
+            query += f' LIMIT {limit}'
+            print(f"DEBUG: Final query: {query}")  # ADD THIS LINE
+
         if node_id:
             query += ' AND node_id = ?'
             cursor.execute(query + ' ORDER BY timestamp DESC', (node_id,))
@@ -411,7 +419,7 @@ def get_sensor_history():
 
         history = []
         for row in rows:
-            timestamp_info = format_timestamp_for_user(row['timestamp'], user_tz                                                                                                             )
+            timestamp_info = format_timestamp_for_user(row['timestamp'], user_tz)
 
             history.append({
                 'id': row['id'],
@@ -487,8 +495,8 @@ def get_network_stats():
                 'total_messages': total_messages,
                 'active_nodes': active_nodes,
                 'avg_rssi': round(avg_rssi, 1),
-                'success_rate': 98.2,  # This would be calculated based on expec                                                                                                             ted vs received
-                'uptime': '7d 12h',    # This would be calculated from server st                                                                                                             art time
+                'success_rate': 98.2,  # This would be calculated based on expected vs received
+                'uptime': '7d 12h',    # This would be calculated from server start time
                 'last_update': last_update_info
             },
             'timezone': user_tz
@@ -539,7 +547,7 @@ def dashboard():
         # Serve static dashboard file
         return app.send_static_file('dashboard.html')
     except Exception as e:
-        return jsonify({'error': 'Dashboard not found. Make sure static/dashboar                                                                                                             d.html exists.'}), 404
+        return jsonify({'error': 'Dashboard not found. Make sure static/dashboard.html exists.'}), 404
 
 @app.route('/charts')
 def charts():
@@ -547,7 +555,7 @@ def charts():
     try:
         return app.send_static_file('charts.html')
     except:
-        return jsonify({'error': 'Charts not found. Make sure static/charts.html                                                                                                              exists.'}), 404
+        return jsonify({'error': 'Charts not found. Make sure static/charts.html exists.'}), 404
 
 @app.route('/health')
 def health_check():
