@@ -119,7 +119,7 @@ python app.py
 | Metric | Value |
 |--------|-------|
 | **Power Consumption** | 20-22µA (deep sleep) |
-| **LoRa Range** | Up to 10km (line of sight) |
+| **LoRa Range** | Up to 7km (line of sight) |
 | **Battery Life** | 2-5 years (depends on transmission interval) |
 | **Sensor Accuracy** | ±1°C, ±3% RH, ±1 hPa |
 | **Data Rate** | 15-minute intervals (configurable) |
@@ -368,3 +368,4 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
