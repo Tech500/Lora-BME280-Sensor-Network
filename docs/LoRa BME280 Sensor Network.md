@@ -46,8 +46,6 @@ This project provides a complete LoRa-based sensor network for monitoring temper
 ### 🔧 Hardware Components
 - **ESP32 LoRa Gateway** (EoRa-S3-900TB or similar)
 - **BME280 Sensor Nodes** (ESP32 + LoRa + BME280)
-- **PCB Designs** (KiCad files included)
-- **3D Printable Enclosures** (Weatherproof cases)
 
 ### 💻 Software Components
 - **Arduino Code** for ESP32 gateway and sensor nodes
@@ -367,5 +365,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ---
 
 **Made with ❤️ by the open source IoT community**
+
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
