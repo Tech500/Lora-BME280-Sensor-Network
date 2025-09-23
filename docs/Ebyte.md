@@ -17,5 +17,6 @@
 - Professional certification (FCC/CE) for commercial applications
 
 
-*Visit [ebyteiot.com]([https://ebyteiot.com/](https://ebyteiot.com/products/ebyte-oem-odm-eora-s3-900tb-22dbm-7km-mini-low-power-and-long-distance-sx1262-rf-module-lora-module-915mhz?_pos=2&_sid=df38ed922&_ss=r) for complete product specifications and support resources.*
+*Visit [ebyteiot.com](https://ebyteiot.com/products/ebyte-oem-odm-eora-s3-900tb-22dbm-7km-mini-low-power-and-long-distance-sx1262-rf-module-lora-module-915mhz?_pos=2&_sid=df38ed922&_ss=r) for complete product specifications and support resources.*
+
 
