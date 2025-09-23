@@ -10,7 +10,9 @@
   
   MIT License - See LICENSE file for details
 */
-//#define RADIOLIB_DEBUG
+
+
+#define RADIOLIB_DEBUG
 
 #include <RadioLib.h>
 #define EoRa_PI_V1
@@ -67,30 +69,30 @@ SPISettings spiSettings(2000000, MSBFIRST, SPI_MODE0);
 #define LORA_BANDWIDTH 125.0                              // kHz
 #define LORA_SPREADING_FACTOR 7                           // [SF7..SF12]
 #define LORA_CODINGRATE 7                                 // [1: 4/5, 2: 4/6, 3: 4/7, 4: 4/8] -> RadioLib uses 7 for 4/7
-#define LORA_PREAMBLE_LENGTH symbols                         // INCREASED TO MATCH TRANSMITTER!
+#define LORA_PREAMBLE_LENGTH 512                      // INCREASED TO MATCH TRANSMITTER!
 #define LORA_SYNC_WORD RADIOLIB_SX126X_SYNC_WORD_PRIVATE  // LoRa sync word
 
-#define DUTY_CYCLE_PARAMS 100, 4900  // Test 5 --(Best --2% Duty cycle  100, 4900)
+#define DUTY_CYCLE_PARAMS  //No parameters
 
 // ===== PACKET STRUCTURES =====
 struct CommandPacket {
-  uint8_t packetType;        // 0x01 for command
-  uint16_t nodeID;           // target node (0xFFFF = broadcast)
-  uint8_t sequenceNumber;    // command sequence
-  char timestamp[32];        // command timestamp
+  uint8_t packetType;      // 0x01 for command
+  uint16_t nodeID;         // target node (0xFFFF = broadcast)
+  uint8_t sequenceNumber;  // command sequence
+  String   lastUpdate;      // command timestamp
   uint8_t checksum;
 };
 
 struct DataPacket {
-  uint8_t packetType;        // 0x02 for sensor data
-  uint16_t nodeID;           // responding node
-  uint8_t sequenceNumber;    // matching command sequence
-  char commandTimestamp[32]; // echo original command timestamp
-  float temperature;         // BME280 simulation
+  uint8_t packetType;         // 0x02 for sensor data
+  uint16_t nodeID;            // responding node
+  uint8_t sequenceNumber;     // matching command sequence
+  String lastUpdate;
+  float temperature;          // BME280 simulation
   float humidity;
   float pressure;
   float batteryVoltage;
-  int16_t rssi;             // RSSI of received command
+  int16_t rssi;  // RSSI of received command
   uint8_t checksum;
 };
 
@@ -98,6 +100,10 @@ struct DataPacket {
 uint16_t myNodeID = 0x1001;  // Unique node identifier
 CommandPacket lastCommand;   // Store received command
 bool commandReceived = false;
+
+ bool wokeFromWOR = false;
+ String storedTimestamp = "";
+
 
 // ===== SENSOR VALUES =====
 float dummyTemp = 22.5;
@@ -107,7 +113,7 @@ float dummyPressure = 1013.2;
 // Global variables
 int task = 0;
 String str;
-String timestamp = "";
+String timestamp;
 
 String centigrade, humidity, pressure;
 
@@ -142,67 +148,61 @@ void print_reset_reason(RESET_REASON reason);
 // ===== CHECKSUM CALCULATION =====
 uint8_t calculateChecksum(uint8_t* data, size_t length) {
   uint8_t sum = 0;
-  for(size_t i = 0; i < length-1; i++) {
+  for (size_t i = 0; i < length - 1; i++) {
     sum ^= data[i];
   }
   return sum;
 }
 
 bool validateChecksum(uint8_t* data, size_t length) {
-  return calculateChecksum(data, length) == data[length-1];
+  return calculateChecksum(data, length) == data[length - 1];
 }
 
-void setupLoRa(){
+void setupLoRa() {
   initBoard();
-    //Delay is required.
-    delay(1500);
+  //Delay is required.
+  delay(1500);
 
-    // initialize SX126x with default settings
-    Serial.print(F("[SX126x] Initializing ... "));
-    //int state = radio.begin(radioFreq);  //example
-    int state = radio.begin(
+  // initialize SX126x with default settings
+  Serial.print(F("[SX126x] Initializing ... "));
+  //int state = radio.begin(radioFreq);  //example
+  int state = radio.begin(
     radioFreq,  // 915.0 MHz
     125.0,      // Bandwidth
     7,          // Spreading factor
     7,          // Coding rate
     RADIOLIB_SX126X_SYNC_WORD_PRIVATE,
     14,   // 14 dBm for good balance
-    512,   // Preamble length
+    512,  // Preamble length
     0.0,  // No TCXO
     true  // LDO mode ON
   );
-    if (state == RADIOLIB_ERR_NONE)
-    {
-        Serial.println(F("success!"));
-    }
-    else
-    {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        while (true)
-            ;
-    }
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println(F("success!"));
+  } else {
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+    while (true)
+      ;
+  }
 
-    // set the function that will be called
-    // when new packet is received
-    radio.setDio1Action(setFlag);
+  // set the function that will be called
+  // when new packet is received
+  radio.setDio1Action(setFlag);
 
-    // start listening for LoRa packets
-    Serial.print(F("[SX126x] Starting to listen ... "));
-    //state = radio.startReceive();  //example
-    // Set up the radio for duty cycle receiving
-    state = radio.startReceiveDutyCycleAuto();
-    if (state == RADIOLIB_ERR_NONE)
-    {
-        Serial.println(F("success!\n"));
-    }
-    else
-    {
-        Serial.print(F("failed, code "));
-        Serial.println(state);
-        while (true)
-            ;
-    }
+  // start listening for LoRa packets
+  Serial.print(F("[SX126x] Starting to listen ... "));
+  //state = radio.startReceive();  //example
+  // Set up the radio for duty cycle receiving
+  state = radio.startReceiveDutyCycleAuto();
+  if (state == RADIOLIB_ERR_NONE) {
+    Serial.println(F("success!\n"));
+  } else {
+    Serial.print(F("failed, code "));
+    Serial.println(state);
+    while (true)
+      ;
+  }
 }
 
 
@@ -210,41 +210,39 @@ void setupLoRa(){
 void collectSensorData() {
   // Simulate BME280 readings with small random variations
   dummyTemp += random(-10, 10) / 10.0;      // ±1°C variation
-  dummyHumidity += random(-50, 50) / 10.0;  // ±5% variation  
+  dummyHumidity += random(-50, 50) / 10.0;  // ±5% variation
   dummyPressure += random(-10, 10) / 10.0;  // ±1hPa variation
-  
+
   // Keep values in reasonable ranges
   dummyTemp = constrain(dummyTemp, 15.0, 35.0);
   dummyHumidity = constrain(dummyHumidity, 30.0, 95.0);
   dummyPressure = constrain(dummyPressure, 980.0, 1050.0);
-  
-  Serial.printf("📊 Dummy sensor readings: %.1f°C, %.1f%%, %.1fhPa\n", 
+
+  Serial.printf("📊 Dummy sensor readings: %.1f, %.1f, %.1f\n",
                 dummyTemp, dummyHumidity, dummyPressure);
 }
 
 void sendSensorResponse() {
-float batteryVoltage = 3.72;         // Stub value
-uint8_t packetType = 0x01;           // Sensor packet type
+  float batteryVoltage = 3.72;  // Stub value
+  uint8_t packetType = 0x01;    // Sensor packet type
 
-static uint16_t sequenceNumber = 0;  // Sequence tracker
-sequenceNumber++;
-
-
+  static uint16_t sequenceNumber = 0;  // Sequence tracker
+  sequenceNumber++;
 
   // Format sensor values into strings
   char temperature[7];
   dtostrf(dummyTemp, 6, 1, temperature);
 
   char humidity[7];
-  dtostrf(dummyHumidity, 6, 1, humidity); 
+  dtostrf(dummyHumidity, 6, 1, humidity);
 
   char baroPressure[9];
-  dtostrf(dummyPressure, 6, 3, baroPressure); 
+  dtostrf(dummyPressure, 6, 3, baroPressure);
 
   // Build response string
-  String response = String(myNodeID, HEX) + "," + timestamp + ","
-                  + temperature + "," + humidity + "," + baroPressure + " ,"
-                  + String(batteryVoltage, 2) + "V";
+  String response = String(myNodeID, HEX) + ","
+                    + temperature + "," + humidity + "," + baroPressure + " ,"
+                    + String(batteryVoltage, 2);
 
   // Log packet info
   Serial.printf("📊 Sending packet: Type=0x%02X, Size=%d bytes\n",
@@ -265,16 +263,15 @@ sequenceNumber++;
   }
 }
 
-void taskDispatcher() {
+void taskDispatcher(String storedTimestamp) {
   // Wake over radio
   digitalWrite(BUILTIN_LED, HIGH);
-  Serial.println("✅ WOR");
-  Serial.println(timestamp);
-  setupLoRa();
-  radio.startReceive();   //radio.startReceiveDutyCycleAuto();
   collectSensorData();  //BME280 data
-  delay(250);
   sendSensorResponse();  //Send to Gateway
+  Serial.print("   Time:  ");
+  Serial.println(storedTimestamp);
+  Serial.println("   Radio.sleep mode next 14 Min.");
+  Serial.println("   ESP32-S3 going to sleep");
   radio.sleep();
   wakeByTimer();
   Serial.println("✅ Timer Expired");
@@ -283,13 +280,9 @@ void taskDispatcher() {
   goToSleep();
 }
 
-//No parsing required!
-
-void wakeByTimer(){
-  // Set deep sleep timer for 30s test / 120s production
-  esp_sleep_enable_timer_wakeup(30 * 1000000ULL); // 30 seconds in microseconds
-  // or
-  //esp_sleep_enable_timer_wakeup(120 * 1000000ULL); // 120 seconds
+void wakeByTimer() {
+  // Set deep sleep timer for 14 Minutes production
+  esp_sleep_enable_timer_wakeup(840 * 1000000ULL);  // 840 seconds in microseconds
 
   // Go to deep sleep - ESP32 wakes itself up after timer
   esp_deep_sleep_start();
@@ -299,7 +292,7 @@ void goToSleep(void) {
   Serial.println("=== PREPARING FOR DEEP SLEEP ===");
   Serial.printf("DIO1 pin state before sleep: %d\n", digitalRead(RADIO_DIO1_PIN));
   Serial.printf("Wake pin (GPIO16) state before sleep: %d\n", digitalRead(WAKE_PIN));
-  
+
   // Set up the radio for duty cycle receiving
   radio.startReceiveDutyCycleAuto();
 
@@ -313,31 +306,31 @@ void goToSleep(void) {
   // Turn off LED before sleep
   digitalWrite(BOARD_LED, LED_OFF);
 
-  Serial.println("✅ Going to deep sleep now...");
+  Serial.println("\n✅ Going to deep sleep now...");
   Serial.println("Wake-up sources: DIO1 pin reroute\n");
   Serial.flush();  // Make sure all serial data is sent before sleep
 
   SPI.end();  //Power saving
 
   // Finally set ESP32 into sleep
-  esp_deep_sleep_start();  
+  esp_deep_sleep_start();
 }
 
 void setup() {
   setCpuFrequencyMhz(80);
   Serial.begin(115200);
-  Serial.println("LoRa Network Node Starting...");
+  Serial.println("LoRa Network Node  v0.8 Starting...");
   Serial.printf("Node ID: %04X\n", myNodeID);
 
   bool fsok = LittleFS.begin(true);
   Serial.printf_P(PSTR("\nFS init: %s\n"), fsok ? PSTR("ok") : PSTR("fail!"));
 
   SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
-  
+
   Serial.print("CPU Frequency: ");
   Serial.print(getCpuFrequencyMhz());
   Serial.println(" MHz");
-  
+
   // Power management optimizations
   eora_disable_wifi();
   eora_disable_bluetooth();
@@ -347,21 +340,41 @@ void setup() {
   if (esp_reset_reason() == ESP_RST_POWERON) {
     printf("Power-on reset detected - initializing...\n");
     setupLoRa();
-    goToSleep(); // Conserve power until Preamble arrives
+    goToSleep();
   }
 
   esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
 
-  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER){
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TIMER) {
     Serial.println("⏰ Woke from timer - sensor reading time");
     setupLoRa();
+    //checkFlag();
     goToSleep();
   }
-  
+
   if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT0) {
-    Serial.println("📡 Woke from LoRa packet");
+    Serial.println("✅ Woke from LoRa packet");
     setupLoRa();
-    taskDispatcher();
+
+    delay(250);
+
+    // First call should detect the WOR packet and set wokeFromWOR=true
+    checkFlag();
+
+    delay(250);
+
+    // Second call should read the timestamp and set the global storedTimestamp
+    checkFlag();
+
+    // Dispatch only if the global storedTimestamp is non-empty
+    if (storedTimestamp.length() > 0) {
+      Serial.println("Dispatching with storedTimestamp: " + storedTimestamp);
+      taskDispatcher(storedTimestamp);  // Now it's valid
+      storedTimestamp = "";  // clear for next cycle
+    } else {
+      Serial.println("No timestamp found after two reads.");
+    }
+    taskDispatcher(storedTimestamp);
   }
 
   // 🔥 NEW: Check if this is a power-on reset (compile/upload/reset)
@@ -379,75 +392,46 @@ void setup() {
 }
 
 void loop() {
-  bool stopRepeating = true;
+}
 
-  Serial.println("Entering loop");
-  stopRepeating = false;  //Resets on wake up
-    
+void checkFlag() {
+  // use the global wokeFromWOR and storedTimestamp
+  if (!receivedFlag) return;
 
-  //check if the flag is set
-    if (receivedFlag)
-    {
-        // disable the interrupt service routine while
-        // processing the data
-        enableInterrupt = false;
+  receivedFlag = false;
+  enableInterrupt = false;
 
-        // reset flag
-        receivedFlag = false;
+  String str;
+  int state = radio.readData(str);
 
-        // you can read received data as an Arduino String
-        String str;
-        int state = radio.readData(str);
+  Serial.println("📦 Received string: " + str);
+  Serial.println("📶 Radio state: " + String(state));
 
-        // you can also read received data as byte array
-        /*
-          byte byteArr[8];
-          int state = radio.readData(byteArr, 8);
-        */
+  if (state == RADIOLIB_ERR_NONE) {
+    if (str.startsWith("WOR--")) {
+      wokeFromWOR = true;
+      Serial.println("✅ WOR packet received");
+    } else if (wokeFromWOR) {
+      // store into the global variable (not a local static)
+      storedTimestamp = str;
+      Serial.println("📅 Timestamp stored (global): " + storedTimestamp);
+      Serial.flush();
 
-        if (state == RADIOLIB_ERR_NONE)
-        {
-            // packet was successfully received
-            Serial.println(F("[SX126x] Received packet!"));
-
-            // print data of the packet
-            Serial.print(F("[SX126x] Data:\t\t"));
-            Serial.println(str);
-            //parseString(str);
-            //taskDispatcher(task, timestamp);
-
-            // print RSSI (Received Signal Strength Indicator)
-            Serial.print(F("[SX126x] RSSI:\t\t"));
-            Serial.print(radio.getRSSI());
-            Serial.println(F(" dBm"));
-
-            // print SNR (Signal-to-Noise Ratio)
-            Serial.print(F("[SX126x] SNR:\t\t"));
-            Serial.print(radio.getSNR());
-            Serial.println(F(" dB"));
-        }
-        else if (state == RADIOLIB_ERR_CRC_MISMATCH)
-        {
-            // packet was received, but is malformed
-            Serial.println(F("CRC error!"));
-        }
-        else
-        {
-            // some other error occurred
-            Serial.print(F("failed, code "));
-            Serial.println(state);
-        }
-
-        // put module back to listen mode
-        //radio.startReceive();  //example
-        // Set up the radio for duty cycle receiving
-        //radio.startReceiveDutyCycleAuto();
-        radio.startReceiveDutyCycleAuto();
-
-        // we're ready to receive more packets,
-        // enable interrupt service routine
-        enableInterrupt = true;
+      // Reset the temporary wake flag so next cycle is clean
+      wokeFromWOR = false;
+      // DO NOT call taskDispatcher() here — let setup() call it once
+    } else {
+      Serial.println("⚠️ Unexpected packet: " + str);
     }
+  } else if (state == RADIOLIB_ERR_CRC_MISMATCH) {
+    Serial.println("⚠️ CRC mismatch");
+  } else {
+    Serial.println("❌ Packet read failed, code: " + String(state));
+  }
+
+  // re-enable receiving and interrupts
+  radio.startReceiveDutyCycleAuto();
+  enableInterrupt = true;
 }
 
 void print_reset_reason(RESET_REASON reason) {
