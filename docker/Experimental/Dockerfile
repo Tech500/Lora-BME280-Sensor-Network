@@ -23,8 +23,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Copy dashboard files  
-COPY ../../dashboard/ /app/dashboard/
+# Create static directory and copy dashboard
+RUN mkdir -p /app/static
+RUN cp ../../dashboard/ /app/static/dashboard.html
+
+# Download chart.js library
+RUN apt-get update && apt-get install -y wget && \
+    wget https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js -O /app/static/chart.udm.js && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create default config if none exists
 RUN echo '{"nodes": [{"id": "1001", "name": "Basement"}, {"id": "1002", "name": "Attic"}, {"id": "1003", "name": "Garage"}]}' > /app/config/nodes.json.default
@@ -72,3 +78,4 @@ USER appuser
 # Start the application
 
 CMD ["/app/start.sh"]
+
