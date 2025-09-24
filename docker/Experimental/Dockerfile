@@ -23,6 +23,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Copy dashboard files  
+COPY ../../dashboard/ /app/dashboard/
+
 # Create default config if none exists
 RUN echo '{"nodes": [{"id": "1001", "name": "Basement"}, {"id": "1002", "name": "Attic"}, {"id": "1003", "name": "Garage"}]}' > /app/config/nodes.json.default
 
@@ -67,4 +70,5 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Start the application
+
 CMD ["/app/start.sh"]
