@@ -24,9 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create static directory and copy dashboard
+# Create static directory and copy dashboard
 RUN mkdir -p /app/static
 RUN cp dashboard.html /app/static/dashboard.html
-
 # Download chart.js library for dashboard charts
 RUN apt-get update && apt-get install -y wget && \
     wget https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js -O /app/static/chart.udm.js && \
@@ -79,3 +79,4 @@ USER appuser
 # Start the application
 
 CMD ["/app/start.sh"]
+
