@@ -58,20 +58,6 @@ curl -sSL https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/deploy
 git clone https://github.com/Tech500/Lora-BME280-Sensor-Network.git
 cd Lora-BME280-Sensor-Network/docker
 mkdir -p data config logs static
-sudo chown -R 1001:1001 data config logs static
-cp ../dashboard/dashboard.html Experimental/dashboard.html
-# Create default config files
-sudo tee config/nodes.json.default > /dev/null << 'EOF'
-{
-  "known_nodes": {},
-  "node_settings": {
-    "default_transmission_interval": 900,
-    "battery_warning_threshold": 3.3
-  }
-}
-EOF
-sudo chown 1001:1001 config/nodes.json.default
-# Edit docker-compose.yml: change build: . to build: ./Experimental
 docker-compose up -d
 ```
 
@@ -256,6 +242,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
