@@ -391,36 +391,36 @@ def get_sensor_history():
         node_id = request.args.get('node_id')
         hours = int(request.args.get('hours', 24))
         limit = request.args.get('limit', type=int)
-
-        print(f"DEBUG: hours={hours}, limit={limit}")  # ADD THIS LINE
-
+        
+        print(f"DEBUG: hours={hours}, limit={limit}")
+        
         user_tz = get_user_timezone()
-
+        
         conn = sqlite3.connect(DATABASE_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-
+        
         query = '''
             SELECT * FROM sensor_data
             WHERE timestamp >= datetime('now', '-{} hours')
+            ORDER BY timestamp DESC
         '''.format(hours)
-
+        
         if limit and limit > 0:
             query += f' LIMIT {limit}'
-            print(f"DEBUG: Final query: {query}")  # ADD THIS LINE
-
+            
+            print(f"DEBUG: Final query: {query}")
+        
         if node_id:
-            query += ' AND node_id = ?'
-            cursor.execute(query + ' ORDER BY timestamp DESC', (node_id,))
+            cursor.execute(query, (node_id,))
         else:
-            cursor.execute(query + ' ORDER BY timestamp DESC')
-
+            cursor.execute(query)
+            
         rows = cursor.fetchall()
-
+        
         history = []
         for row in rows:
             timestamp_info = format_timestamp_for_user(row['timestamp'], user_tz)
-
             history.append({
                 'id': row['id'],
                 'node_id': row['node_id'],
@@ -432,9 +432,9 @@ def get_sensor_history():
                 'snr': row['snr'],
                 'timestamp': timestamp_info
             })
-
+            
         conn.close()
-
+        
         return jsonify({
             'success': True,
             'data': history,
@@ -442,7 +442,7 @@ def get_sensor_history():
             'timezone': user_tz,
             'hours': hours
         })
-
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

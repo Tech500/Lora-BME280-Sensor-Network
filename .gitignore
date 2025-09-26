@@ -1,0 +1,3 @@
+docker/data/
+docker/*.db
+docker/temp_*.txt
