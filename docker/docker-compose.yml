@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   lora-api:
-    build: ./Experimental
+    build: ./docker
     container_name: lora-sensor-api
     restart: unless-stopped
     ports:
@@ -20,6 +20,7 @@ services:
 networks:
   lora-network:
     driver: bridge
+
 
 
 
