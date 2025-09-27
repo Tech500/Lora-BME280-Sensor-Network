@@ -1,3 +1,5 @@
+# Fix the requirements.txt file
+cat > requirements.txt << EOF
 Flask==2.3.3
 pytz==2023.3
-sqlite3
+EOF
