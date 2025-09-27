@@ -24,7 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create static directory and copy dashboard
-# Create static directory and copy dashboard
 RUN mkdir -p /app/static
 RUN cp dashboard.html /app/static/dashboard.html
 # Download chart.js library for dashboard charts
@@ -79,4 +78,5 @@ USER appuser
 # Start the application
 
 CMD ["/app/start.sh"]
+
 
