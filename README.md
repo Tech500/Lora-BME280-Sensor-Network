@@ -54,10 +54,11 @@ curl -sSL https://github.com/Tech500/Lora-BME280-Sensor-Network/blob/main/deploy
 
 ### Option 2: Docker Deployment
 
+## Quick Start
 ```bash
 git clone https://github.com/Tech500/Lora-BME280-Sensor-Network.git
 cd Lora-BME280-Sensor-Network/docker
-mkdir -p data config logs static
+./setup.sh
 docker-compose up -d
 ```
 
@@ -242,6 +243,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
