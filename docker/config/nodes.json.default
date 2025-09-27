@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {
+      "id": "node_001",
+      "name": "Sensor Node 1",
+      "location": "Default Location", 
+      "sensors": ["BME280"],
+      "active": true
+    }
+  ]
+}

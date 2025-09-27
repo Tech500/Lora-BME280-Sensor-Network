@@ -9,7 +9,18 @@ from functools import wraps
 import sys
 import logging
 
-app = Flask(__name__)
+from pathlib import Path
+
+def ensure_database_directory():
+    """Ensure the database directory exists and is writable"""
+    db_path = Path("/app/data")
+    db_path.mkdir(parents=True, exist_ok=True)
+    
+    # Ensure the directory is writable
+    if not os.access(db_path, os.W_OK):
+        raise PermissionError(f"Cannot write to {db_path}")
+
+app = Flask(__name__, static_folder='static')
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
 # Configuration
@@ -95,6 +106,7 @@ def format_timestamp_for_user(utc_timestamp, timezone_str=None):
 def init_database():
     """Initialize SQLite database"""
     try:
+        ensure_database_directory()
         os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -127,8 +139,10 @@ def init_database():
         conn.commit()
         conn.close()
         print("Database initialized successfully")
+        return True
     except Exception as e:
         print(f"Database initialization error: {e}")
+        return False
 
 # API Routes
 
@@ -577,16 +591,22 @@ def internal_error(error):
 
 # Initialize app
 if __name__ == '__main__':
-    # Initialize database on startup
-    init_database()
-
-    # Load initial settings
-    settings = load_settings()
-    print(f"Server starting with timezone: {settings.get('timezone', 'UTC')}")
-
-    # Run the app
-    app.run(
-        host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
-        debug=os.environ.get('DEBUG', 'False').lower() == 'true'
-    )
+    print("🚀 Initializing LoRa Sensor Network...")
+    print(f"📁 Database path: {DATABASE_PATH}")
+    print(f"⚙️ Config path: {CONFIG_PATH}")
+    
+    # Initialize database on startup with error checking
+    if init_database():
+        # Load initial settings
+        settings = load_settings()
+        print(f"Server starting with timezone: {settings.get('timezone', 'UTC')}")
+        
+        # Run the app
+        app.run(
+            host='0.0.0.0',
+            port=int(os.environ.get('PORT', 5001)),  # Change to 5001 to match your docker-compose
+            debug=os.environ.get('DEBUG', 'False').lower() == 'true'
+        )
+    else:
+        print("❌ Database initialization failed")
+        sys.exit(1)
