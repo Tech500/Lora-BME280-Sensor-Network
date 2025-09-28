@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LoRa Sensor Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="/static/chart.umd.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100vh !important;
+            max-height: 100vh !important;
+            overflow: hidden !important;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* Main Dashboard Wrapper - Centered with Top Spacing */
+        .dashboard-wrapper {
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            max-width: 1400px;
+            width: 100%;
+            margin: 20px auto;
+        }
+
+        /* Header Container - Fixed Height */
+        .header-container {
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 12px 20px;
+            margin-bottom: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+
+        .header-container h1 {
+            font-size: 1.4em;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+
+        .header-container p {
+            font-size: 0.8em;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+
+        .header-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Tabs Container - Fixed Height */
+        .tabs-container {
+            flex-shrink: 0;
+            display: flex;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 4px;
+            margin-bottom: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            background: rgba(30, 60, 114, 0.6) !important;
+            color: #fff !important;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+
+        .tab.active {
+            background: #1e3a8a !important;
+            color: white !important;
+            border-color: #1e3a8a !important;
+            box-shadow: 0 2px 10px rgba(30, 58, 138, 0.3) !important;
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(42, 82, 152, 0.8) !important;
+            color: white !important;
+            border-color: rgba(255, 255, 255, 0.4) !important;
+            transform: translateY(-1px);
+        }
+
+        /* Content Container - Takes Remaining Space */
+        .content-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Real-time Data Styles */
+        .status-container {
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 15px;
+            margin-bottom: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .controls-container {
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 15px;
+            margin-bottom: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .data-display-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        /* Chart Section - Nested Container Structure */
+        .chart-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        /* Chart Controls - Fixed Height */
+        .chart-controls-container {
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 15px;
+            margin-bottom: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        /* Chart Display - Takes Remaining Space */
+        .chart-display-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 8px;
+            max-height: 400px;
+        }
+
+        .chart-title {
+            flex-shrink: 0;
+            color: white;
+            font-size: 0.9em;
+            font-weight: 500;
+            text-align: center;
+            margin-bottom: 4px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-canvas-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 0;
+            max-height: 280px;
+            height: 280px;
+        }
+
+        .chart-canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Chart Statistics - Fixed Height */
+        .chart-stats-container {
+            flex-shrink: 0;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            margin-top: 8px;
+            border-top: 2px solid rgba(255, 255, 255, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 8px;
+        }
+
+        .stat-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .stat-item > div:first-child {
+            font-size: 0.7em;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #ffffff !important;
+            font-size: 0.85em;
+        }
+
+        /* Form Elements */
+        .controls-container select, .controls-container button,
+        .chart-controls-container select, .chart-controls-container button {
+            margin: 2px;
+            padding: 6px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: #1e3c72 !important;
+            color: #fff !important;
+            backdrop-filter: blur(10px);
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .controls-container select option,
+        .chart-controls-container select option {
+            background: #1e3c72 !important;
+            color: white !important;
+        }
+
+        .controls-container button:hover,
+        .chart-controls-container button:hover {
+            background: #1e40af !important;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 58, 138, 0.4);
+        }
+
+        /* Data Table */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            overflow: hidden;
+        }
+
+        .data-table th {
+            background: rgba(30, 60, 114, 0.8);
+            color: white;
+            padding: 10px 8px;
+            text-align: left;
+            font-size: 0.85em;
+        }
+
+        .data-table td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 0.8em;
+        }
+
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .node-badge {
+            background: #1e3a8a !important;
+            color: white !important;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.8em;
+        }
+
+        /* Settings and Utility */
+        .settings-btn {
+            background: #1e3a8a !important;
+            color: white !important;
+            border: none !important;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.3s;
+        }
+
+        .settings-btn:hover {
+            background: #1e40af !important;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 58, 138, 0.4);
+        }
+
+        .timezone-display {
+            background: rgba(30, 58, 138, 0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            color: #fff !important;
+            display: inline-block;
+            border: 1px solid rgba(30, 58, 138, 0.3);
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+            padding: 20px;
+        }
+
+        .loading-spinner::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #1e3a8a !important;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Pagination */
+        .pagination {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        .pagination button {
+            margin: 2px;
+            padding: 6px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            border-radius: 8px;
+            color: #fff;
+            transition: all 0.3s;
+        }
+
+        .pagination button:hover, .pagination .active {
+            background: #1e3a8a !important;
+            color: white !important;
+            transform: translateY(-2px);
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
+            color: #fff;
+        }
+
+        .close {
+            color: rgba(255, 255, 255, 0.7);
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            position: absolute;
+            right: 15px;
+            top: 10px;
+        }
+
+        .close:hover { color: #fff; }
+
+        .setting-group {
+            margin-bottom: 15px;
+        }
+
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .setting-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .setting-group input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .setting-group small {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8em;
+            margin-top: 3px;
+            display: block;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            flex: 1;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: #1e3a8a !important;
+            color: white !important;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.success {
+            background: #1e3a8a !important;
+        }
+
+        .notification.error {
+            background: #dc2626 !important;
+        }
+
+        .notification.show { transform: translateX(0); }
+
+        /* Responsive - Scales to Any Window Size */
+        @media (max-width: 768px) {
+            .dashboard-wrapper {
+                padding: 4px;
+                width: 98%;
+            }
+
+            .header-container h1 {
+                font-size: 1.2em;
+            }
+
+            .chart-controls-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .chart-controls-container select {
+                width: 100%;
+            }
+
+            .chart-display-container {
+                height: calc(90vh - 320px);
+                max-height: calc(90vh - 320px);
+            }
+
+            .chart-canvas-wrapper {
+                height: calc(90vh - 420px);
+                max-height: calc(90vh - 420px);
+            }
+        }
+
+        @media (min-height: 900px) {
+            .chart-display-container {
+                height: calc(90vh - 250px);
+                max-height: calc(90vh - 250px);
+            }
+
+            .chart-canvas-wrapper {
+                height: calc(90vh - 350px);
+                max-height: calc(90vh - 350px);
+            }
+        }
+
+        @media (min-height: 1200px) {
+            .chart-display-container {
+                height: calc(90vh - 200px);
+                max-height: calc(90vh - 200px);
+            }
+
+            .chart-canvas-wrapper {
+                height: calc(90vh - 300px);
+                max-height: calc(90vh - 300px);
+            }
+        }
+		
+		/* Enhanced settings modal styling */
+		.modal-content {
+			margin: 2% auto !important;
+			max-height: 95vh !important;
+			overflow-y: auto !important;
+			max-width: 700px !important;
+		}
+
+		#settingsModal input[type="checkbox"] {
+			appearance: none;
+			width: 18px;
+			height: 18px;
+			border: 2px solid rgba(255, 255, 255, 0.3);
+			border-radius: 3px;
+			background: rgba(255, 255, 255, 0.1);
+			cursor: pointer;
+			position: relative;
+			margin-right: 8px;
+		}
+
+		#settingsModal input[type="checkbox"]:checked {
+			background: #1e3a8a;
+			border-color: #1e3a8a;
+		}
+
+		#settingsModal input[type="checkbox"]:checked::after {
+			content: '✓';
+			position: absolute;
+			color: white;
+			font-size: 12px;
+			font-weight: bold;
+			top: -2px;
+			left: 2px;
+		}
+    </style>
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <!-- Header Container -->
+        <div class="header-container">
+            <h1>EoRa Pi LoRa Sensor Network</h1>
+            <p>BME280 Environmental Data Dashboard</p>
+            <div class="header-controls">
+                <span class="timezone-display" id="currentTimezone">America/New_York</span>
+                <button class="settings-btn" id="settingsBtn">Settings</button>
+            </div>
+        </div>
+
+        <!-- Tabs Container -->
+        <div class="tabs-container">
+            <button class="tab active" onclick="showTab('realtime')">Real-Time Data</button>
+            <button class="tab" onclick="showTab('charts')">Sensor Charts</button>
+        </div>
+
+        <!-- Content Container -->
+        <div class="content-container">
+            <!-- Real-time Data Tab -->
+            <div id="realtime-tab" class="tab-content active">
+                <div class="status-container">
+                    <span id="status">Loading...</span> |
+                    <span id="total">Total: --</span> |
+                    <span id="last-update">Last: --</span>
+                    <button onclick="refreshData()" style="float: right;">Refresh</button>
+                </div>
+
+                <div class="controls-container">
+                    <label>Node: </label>
+                    <select id="nodeFilter" onchange="filterData()">
+                        <option value="">All Nodes</option>
+                    </select>
+
+                    <label>Show: </label>
+                    <select id="pageSize" onchange="changePageSize()">
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                    </select>
+
+                    <label>
+                        <input type="checkbox" id="autoRefresh" checked onchange="toggleAutoRefresh()">
+                        Auto-refresh (30s)
+                    </label>
+                </div>
+
+                <div class="data-display-container">
+                    <div id="dataContainer">Loading data...</div>
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </div>
+
+            <!-- Charts Tab -->
+            <div id="charts-tab" class="tab-content">
+                <div class="chart-section">
+                    <!-- Chart Controls Container -->
+                    <div class="chart-controls-container">
+                    <label for="readingRangeSelect">Data Range:</label>
+                    <select id="readingRangeSelect" onchange="updateCharts()">
+                        <option value="25">Last 25 readings</option>
+                        <option value="50">Last 50 readings</option>
+                        <option value="100" selected>Last 100 readings</option>
+                        <option value="200">Last 200 readings</option>
+                        <option value="500">Last 500 readings</option>
+                        <option value="all">All data (72h)</option>
+                    </select>
+
+                    <label for="chartSelector">Chart Type:</label>
+                    <select id="chartSelector" onchange="changeChart()">
+                        <!-- existing options -->
+                        <option value="temperature" selected>Temperature (°F)</option>
+                            <option value="humidity">Humidity (%)</option>
+                            <option value="pressure">Pressure (hPa)</option>
+                            <option value="battery">Battery Voltage (V)</option>
+                            <option value="signal">Signal Strength (RSSI dBm)</option>
+                    </select>
+
+                    <label for="chartNodeSelect">Node:</label>
+                    <select id="chartNodeSelect" onchange="updateCharts()">
+                        <option value="all">All Nodes</option>
+                    </select>
+
+                    <button onclick="updateCharts()">Refresh Chart</button>
+                    <div class="loading-spinner" id="chartLoading">Loading data...</div>
+                </div>
+                    <!-- Chart Display Container -->
+                    <div class="chart-display-container">
+                        <div class="chart-title" id="currentChartTitle">Temperature (°F)</div>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="singleChart" class="chart-canvas"></canvas>
+                        </div>
+
+                        <!-- Chart Statistics Container -->
+                        <div class="chart-stats-container">
+                            <div class="stat-item">
+                                <div>Current</div>
+                                <div class="stat-value" id="currentValue">--</div>
+                            </div>
+                            <div class="stat-item">
+                                <div>Node</div>
+                                <div class="stat-value" id="currentNode">--</div>
+                            </div>
+                            <div class="stat-item">
+                                <div>Average</div>
+                                <div class="stat-value" id="averageValue">--</div>
+                            </div>
+                            <div class="stat-item">
+                                <div>Total Points</div>
+                                <div class="stat-value" id="totalPoints">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>Dashboard Settings</h3>
+
+            <div class="setting-group">
+                <label for="timezoneInput">Timezone</label>
+                <input type="text"
+                       id="timezoneInput"
+                       placeholder="America/New_York"
+                       value="America/New_York">
+                <small>Examples: UTC, America/New_York, Europe/London, Asia/Tokyo</small>
+            </div>
+
+            <div class="setting-group">
+                <label for="refreshInterval">Auto-refresh Interval (seconds)</label>
+                <input type="number"
+                       id="refreshInterval"
+                       placeholder="30"
+                       value="30"
+                       min="5"
+                       max="300">
+                <small>How often to update data (5-300 seconds)</small>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="saveSettings">Save Settings</button>
+                <button class="btn btn-secondary" id="resetSettings">Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // Global variables
+        let currentChart = null;
+        let currentChartType = 'temperature';
+        let chartData = [];
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let pageSize = 25;
+        let autoRefresh;
+        let currentTimezone = localStorage.getItem('userTimezone') || 'America/New_York';
+        let refreshIntervalSeconds = parseInt(localStorage.getItem('refreshInterval')) || 30;
+
+        // Tab functionality
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+
+            if (tabName === 'charts') {
+                updateCharts();
+            }
+        }
+
+        // Chart type selector
+        function changeChart() {
+            currentChartType = document.getElementById('chartSelector').value;
+            updateCharts();
+        }
+
+        // Data loading with error handling
+        async function loadData() {
+            try {
+                const response = await fetch('/api/sensor-data/latest', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+                allData = [];
+
+                if (result.success && result.data) {
+                    for (const nodeData of result.data) {
+                        allData.push({
+                            node_id: nodeData.node_id,
+                            temperature_f: nodeData.temperature ? (nodeData.temperature * 9/5 + 32) : '--',
+                            humidity: nodeData.humidity || '--',
+                            pressure_hpa: nodeData.pressure || '--',
+                            battery_voltage: nodeData.battery_voltage || '--',
+                            rssi: nodeData.rssi || '--',
+                            timestamp: nodeData.timestamp || '--'
+                        });
+                    }
+                }
+
+                populateNodeFilter();
+                populateChartNodeFilter();
+                filterData();
+                updateStatus();
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('dataContainer').innerHTML = '<p>Error loading data: ' + error.message + '</p>';
+                document.getElementById('status').textContent = 'Connection Error - Check server';
+            }
+        }
+
+        // Chart functionality
+        async function updateCharts() {
+            const loading = document.getElementById('chartLoading');
+            loading.style.display = 'block';
+
+            try {
+                const selectedRange = document.getElementById('readingRangeSelect').value;
+                let url = '/api/sensor-data/history?hours=72';
+
+                if (selectedRange !== 'all') {
+                    url += `&limit=${selectedRange}`;
+                }
+
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const sortedData = result.data.reverse();
+                    chartData = sortedData.map(item => ({
+                        timestamp: item.timestamp.formatted ? item.timestamp.formatted.split(' ')[1] : item.timestamp,
+                        fullTimestamp: item.timestamp || '--',
+                        node_id: item.node_id,
+                        temperature: item.temperature,
+                        humidity: item.humidity,
+                        pressure: item.pressure,
+                        battery_voltage: item.battery_voltage,
+                        rssi: item.rssi
+                    }));
+
+                    const selectedRange = document.getElementById('readingRangeSelect').value;
+                    if (selectedRange !== 'all' && chartData.length > parseInt(selectedRange)) {
+                        chartData = chartData.slice(0, parseInt(selectedRange));
+                    }
+                } else {
+                    console.error('Failed to load data:', result.error || 'No data available');
+                    document.getElementById('currentChartTitle').textContent = 'No Data Available';
+                }
+            } catch (error) {
+                console.error('Error updating charts:', error);
+                document.getElementById('currentChartTitle').textContent = 'Connection Error';
+            } finally {
+                loading.style.display = 'none';
+            }
+
+            renderSingleChart();
+        }
+
+        function renderSingleChart() {
+            const ctx = document.getElementById('singleChart').getContext('2d');
+            if (currentChart) currentChart.destroy();
+
+            const selectedNode = document.getElementById('chartNodeSelect').value;
+            let filteredChartData = chartData;
+
+            if (selectedNode !== 'all') {
+                filteredChartData = chartData.filter(item => item.node_id === selectedNode);
+            }
+
+            const chartConfig = getChartConfig(currentChartType, filteredChartData);
+            currentChart = new Chart(ctx, chartConfig);
+
+            updateChartTitle();
+            updateStatistics(filteredChartData);
+        }
+
+        function getChartConfig(chartType, data) {
+            const timeLabels = data.map(item => item.timestamp);
+            let dataset = {};
+
+            switch (chartType) {
+                case 'temperature':
+                    dataset = {
+                        label: 'Temperature (°F)',
+                        data: data.map(item => item.temperature ? (item.temperature * 9/5 + 32).toFixed(1) : 0),
+                        backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                        borderColor: '#1e3a8a',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#1e3a8a',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                    break;
+                case 'humidity':
+                    dataset = {
+                        label: 'Humidity (%)',
+                        data: data.map(item => item.humidity || 0),
+                        backgroundColor: 'rgba(30, 58, 138, 0.1)',
+                        borderColor: '#1e3a8a',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#1e3a8a',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                    break;
+                case 'pressure':
+                    dataset = {
+                        label: 'Pressure (hPa)',
+                        data: data.map(item => item.pressure || 0),
+                        backgroundColor: 'rgba(30, 60, 114, 0.1)',
+                        borderColor: '#1e3c72',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#1e3c72',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                    break;
+                case 'battery':
+                    dataset = {
+                        label: 'Battery (V)',
+                        data: data.map(item => item.battery_voltage || 0),
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderColor: '#3498db',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#3498db',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                    break;
+                case 'signal':
+                    dataset = {
+                        label: 'RSSI (dBm)',
+                        data: data.map(item => item.rssi || 0),
+                        backgroundColor: 'rgba(30, 64, 175, 0.1)',
+                        borderColor: '#1e40af',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#1e40af',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    };
+                    break;
+            }
+
+            return {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [dataset]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: {
+                            top: 5,
+                            bottom: 20,
+                            left: 10,
+                            right: 10
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(30, 60, 114, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(tooltipItems) {
+                                    const dataIndex = tooltipItems[0].dataIndex;
+                                    const dataPoint = chartData[dataIndex];
+
+                                    if (dataPoint.timestamp) {
+                                        return `${new Date().toLocaleDateString()} ${dataPoint.timestamp}`;
+                                    }
+                                    return tooltipItems[0].label;
+                                },
+                                label: function(context) {
+                                    let value = context.parsed.y;
+                                    let unit = '';
+
+                                    switch (currentChartType) {
+                                        case 'temperature':
+                                            unit = '°F';
+                                            break;
+                                        case 'humidity':
+                                            unit = '%';
+                                            break;
+                                        case 'pressure':
+                                            value = Math.round(value);
+                                            unit = ' hPa';
+                                            break;
+                                        case 'battery':
+                                            unit = 'V';
+                                            break;
+                                        case 'signal':
+                                            unit = ' dBm';
+                                            break;
+                                    }
+
+                                    return `${context.dataset.label}: ${value}${unit}`;
+                                },
+                                afterBody: function(tooltipItems) {
+                                    const dataIndex = tooltipItems[0].dataIndex;
+                                    const dataPoint = chartData[dataIndex];
+
+                                    return [
+                                        `Node: ${dataPoint.node_id}`,
+                                        `Point ${dataIndex + 1} of ${chartData.length}`
+                                    ];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.85)',
+                                maxTicksLimit: 6,
+                                font: {
+                                    size: 10
+                                },
+                                maxRotation: 0,
+                                minRotation: 0,
+                                padding: 5
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawTicks: true
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: dataset.label,
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.8)',
+                                font: {
+                                    size: 10
+                                },
+                                callback: function(value) {
+                                    if (currentChartType === 'pressure') {
+                                        return Math.round(value).toString();
+                                    }
+                                    return value;
+                                }
+                            },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            };
+        }
+
+        function updateChartTitle() {
+            const titles = {
+                'temperature': 'Temperature (°F)',
+                'humidity': 'Humidity (%)',
+                'pressure': 'Pressure (hPa)',
+                'battery': 'Battery Voltage (V)',
+                'signal': 'Signal Strength (RSSI dBm)'
+            };
+            document.getElementById('currentChartTitle').textContent = titles[currentChartType];
+        }
+
+        function updateStatistics(data) {
+            if (data.length === 0) {
+                document.getElementById('currentValue').textContent = '--';
+                document.getElementById('currentNode').textContent = '--';
+                document.getElementById('averageValue').textContent = '--';
+                document.getElementById('totalPoints').textContent = '0';
+                return;
+            }
+
+            const latestData = data[data.length - 1];
+            let currentValue, average, unit = '';
+
+            switch (currentChartType) {
+                case 'temperature':
+                    currentValue = latestData.temperature ? (latestData.temperature * 9/5 + 32).toFixed(1) : '--';
+                    const temps = data.map(item => item.temperature ? (item.temperature * 9/5 + 32) : 0).filter(v => v > 0);
+                    average = temps.length > 0 ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : '--';
+                    unit = '°F';
+                    break;
+                case 'humidity':
+                    currentValue = latestData.humidity ? latestData.humidity.toFixed(1) : '--';
+                    const humidity = data.map(item => item.humidity || 0).filter(v => v > 0);
+                    average = humidity.length > 0 ? (humidity.reduce((a, b) => a + b, 0) / humidity.length).toFixed(1) : '--';
+                    unit = '%';
+                    break;
+                case 'pressure':
+                    currentValue = latestData.pressure ? Math.round(latestData.pressure) : '--';
+                    const pressure = data.map(item => item.pressure || 0).filter(v => v > 0);
+                    average = pressure.length > 0 ? Math.round(pressure.reduce((a, b) => a + b, 0) / pressure.length) : '--';
+                    unit = ' hPa';
+                    break;
+                case 'battery':
+                    currentValue = latestData.battery_voltage ? latestData.battery_voltage.toFixed(2) : '--';
+                    const battery = data.map(item => item.battery_voltage || 0).filter(v => v > 0);
+                    average = battery.length > 0 ? (battery.reduce((a, b) => a + b, 0) / battery.length).toFixed(2) : '--';
+                    unit = 'V';
+                    break;
+                case 'signal':
+                    currentValue = latestData.rssi ? latestData.rssi : '--';
+                    const rssi = data.map(item => item.rssi || 0).filter(v => v !== 0);
+                    average = rssi.length > 0 ? (rssi.reduce((a, b) => a + b, 0) / rssi.length).toFixed(0) : '--';
+                    unit = ' dBm';
+                    break;
+            }
+
+            document.getElementById('currentValue').textContent = currentValue + unit;
+            document.getElementById('currentNode').textContent = latestData.node_id || '--';
+            document.getElementById('averageValue').textContent = average + unit;
+            document.getElementById('totalPoints').textContent = data.length;
+        }
+
+        // Helper functions for data management
+        function populateNodeFilter() {
+            const nodeFilter = document.getElementById('nodeFilter');
+            const nodes = [...new Set(allData.map(d => d.node_id))];
+            nodeFilter.innerHTML = '<option value="">All Nodes</option>';
+            nodes.forEach(nodeId => {
+                const option = document.createElement('option');
+                option.value = nodeId;
+                option.textContent = nodeId;
+                nodeFilter.appendChild(option);
+            });
+        }
+
+        function populateChartNodeFilter() {
+            const nodeFilter = document.getElementById('chartNodeSelect');
+            const nodes = [...new Set(allData.map(d => d.node_id))];
+            nodeFilter.innerHTML = '<option value="all">All Nodes</option>';
+            nodes.forEach(nodeId => {
+                const option = document.createElement('option');
+                option.value = nodeId;
+                option.textContent = `Node ${nodeId}`;
+                nodeFilter.appendChild(option);
+            });
+        }
+
+        function filterData() {
+            const nodeFilter = document.getElementById('nodeFilter').value;
+            filteredData = nodeFilter ? allData.filter(d => d.node_id === nodeFilter) : [...allData];
+            currentPage = 1;
+            renderTable();
+        }
+
+        function renderTable() {
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = filteredData.slice(start, end);
+
+            if (pageData.length === 0) {
+                document.getElementById('dataContainer').innerHTML = '<p>No data available</p>';
+                return;
+            }
+
+            const table = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Node</th>
+                            <th>Time (${currentTimezone})</th>
+                            <th>Temp (°F)</th>
+                            <th>Humidity (%)</th>
+                            <th>Pressure</th>
+                            <th>Battery (V)</th>
+                            <th>RSSI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pageData.map(row => `
+                            <tr>
+                                <td><span class="node-badge">${row.node_id}</span></td>
+                                <td>${formatTimestampForTimezone(row.received_at || row.timestamp, currentTimezone)}</td>
+                                <td>${parseFloat(row.temperature_f || 0).toFixed(1)}</td>
+                                <td>${parseFloat(row.humidity || 0).toFixed(1)}</td>
+                                <td>${Math.round(parseFloat(row.pressure_hpa || 0))}</td>
+                                <td>${parseFloat(row.battery_voltage || 0).toFixed(2)}</td>
+                                <td>${row.rssi || '--'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('dataContainer').innerHTML = table;
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            if (totalPages <= 1) {
+                document.getElementById('pagination').innerHTML = '';
+                return;
+            }
+
+            let pagination = '';
+            if (currentPage > 1) {
+                pagination += `<button onclick="changePage(${currentPage - 1})">Previous</button> `;
+            }
+
+            for (let i = 1; i <= totalPages; i++) {
+                const activeClass = i === currentPage ? 'active' : '';
+                pagination += `<button class="${activeClass}" onclick="changePage(${i})">${i}</button> `;
+            }
+
+            if (currentPage < totalPages) {
+                pagination += `<button onclick="changePage(${currentPage + 1})">Next</button>`;
+            }
+
+            document.getElementById('pagination').innerHTML = pagination;
+        }
+
+        function changePage(page) { currentPage = page; renderTable(); }
+        function changePageSize() { pageSize = parseInt(document.getElementById('pageSize').value); currentPage = 1; renderTable(); }
+        function refreshData() { loadData(); }
+
+        function updateStatus() {
+            const activeNodes = [...new Set(allData.map(d => d.node_id))].length;
+            const lastReading = allData.length > 0 ? new Date(allData[0].received_at || allData[0].timestamp) : null;
+
+            document.getElementById('status').textContent = `${activeNodes} active nodes`;
+            document.getElementById('total').textContent = `Total: ${allData.length}`;
+            document.getElementById('last-update').textContent =
+                lastReading ? `Last: ${formatTimestampForTimezone(lastReading, currentTimezone).split(' ')[1]}` : 'Last: --';
+        }
+
+        function toggleAutoRefresh() {
+            const checkbox = document.getElementById('autoRefresh');
+            if (checkbox.checked) {
+                autoRefresh = setInterval(loadData, refreshIntervalSeconds * 1000);
+            } else {
+                clearInterval(autoRefresh);
+            }
+        }
+
+        // Timezone Management
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTimezoneDisplay();
+            updateAutoRefreshInterval();
+            initializeSettingsModal();
+            loadData();
+            toggleAutoRefresh();
+        });
+
+        function updateTimezoneDisplay() {
+            document.getElementById('currentTimezone').textContent = currentTimezone;
+        }
+
+        function updateAutoRefreshInterval() {
+            const checkbox = document.getElementById('autoRefresh');
+            if (checkbox && checkbox.checked) {
+                clearInterval(autoRefresh);
+                autoRefresh = setInterval(loadData, refreshIntervalSeconds * 1000);
+            }
+        }
+
+        function formatTimestampForTimezone(timestamp, timezone) {
+            try {
+                const date = new Date(timestamp);
+                return date.toLocaleString('en-US', {
+                    timeZone: timezone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            } catch (error) {
+                console.error('Timezone formatting error:', error);
+                return new Date(timestamp).toLocaleString();
+            }
+        }
+
+        function isValidTimezone(timezone) {
+            try {
+                Intl.DateTimeFormat([], {timeZone: timezone});
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function initializeSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            const settingsBtn = document.getElementById('settingsBtn');
+            const closeBtn = document.querySelector('.close');
+
+            settingsBtn.onclick = function() {
+                modal.style.display = 'block';
+                document.getElementById('timezoneInput').value = currentTimezone;
+                document.getElementById('refreshInterval').value = refreshIntervalSeconds;
+            }
+
+            closeBtn.onclick = function() {
+                modal.style.display = 'none';
+            }
+
+            window.onclick = function(event) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+
+            document.getElementById('saveSettings').addEventListener('click', function() {
+                const timezone = document.getElementById('timezoneInput').value.trim();
+                const newRefreshInterval = parseInt(document.getElementById('refreshInterval').value);
+
+                if (timezone && isValidTimezone(timezone)) {
+                    currentTimezone = timezone;
+                    localStorage.setItem('userTimezone', timezone);
+
+                    if (newRefreshInterval >= 5 && newRefreshInterval <= 300) {
+                        refreshIntervalSeconds = newRefreshInterval;
+                        localStorage.setItem('refreshInterval', refreshIntervalSeconds);
+                        updateAutoRefreshInterval();
+                    }
+
+                    updateTimezoneDisplay();
+                    modal.style.display = 'none';
+                    showNotification('Settings saved successfully!', 'success');
+                    loadData();
+                } else {
+                    showNotification('Invalid timezone. Please use format like: America/New_York', 'error');
+                }
+            });
+
+            document.getElementById('resetSettings').addEventListener('click', function() {
+                currentTimezone = 'America/New_York';
+                refreshIntervalSeconds = 30;
+                localStorage.removeItem('userTimezone');
+                localStorage.removeItem('refreshInterval');
+
+                document.getElementById('timezoneInput').value = 'America/New_York';
+                document.getElementById('refreshInterval').value = 30;
+
+                updateTimezoneDisplay();
+                updateAutoRefreshInterval();
+                showNotification('Settings reset to defaults', 'success');
+                loadData();
+            });
+        }
+    </script>
+</body>
+</html>
