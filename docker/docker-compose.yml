@@ -1,6 +1,7 @@
 version: '3.8'
 services:
-  lora-sensor-network:
+  lora-api-enhanced-v2:  
+    container_name: lora-sensor-api-v5
     build: .
     ports:
       - "5001:5001"
@@ -11,6 +12,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       
+
 
 
 
