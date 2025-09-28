@@ -740,7 +740,7 @@
         let currentTimezone = localStorage.getItem('userTimezone') || 'America/New_York';
         let refreshIntervalSeconds = parseInt(localStorage.getItem('refreshInterval')) || 30;
 
-        // Tab functionality - Simplified
+        // Tab functionality
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
@@ -759,7 +759,7 @@
             updateCharts();
         }
 
-        // Data loading with better error handling
+        // Data loading with error handling
         async function loadData() {
             try {
                 const response = await fetch('/api/sensor-data/latest', {
@@ -777,19 +777,19 @@
                 const result = await response.json();
                 allData = [];
 
-               if (result.success && result.data) {
-                  for (const nodeData of result.data) {
-                      allData.push({
-                      node_id: nodeData.node_id,
-                      temperature_f: nodeData.temperature ? (nodeData.temperature * 9/5 + 32) : '--',
-                      humidity: nodeData.humidity || '--',
-                      pressure_hpa: nodeData.pressure || '--',
-                      battery_voltage: nodeData.battery_voltage || '--',
-                      rssi: nodeData.rssi || '--',
-                      timestamp: nodeData.timestamp || '--'
-                });
-             }
-          }
+                if (result.success && result.data) {
+                    for (const nodeData of result.data) {
+                        allData.push({
+                            node_id: nodeData.node_id,
+                            temperature_f: nodeData.temperature ? (nodeData.temperature * 9/5 + 32) : '--',
+                            humidity: nodeData.humidity || '--',
+                            pressure_hpa: nodeData.pressure || '--',
+                            battery_voltage: nodeData.battery_voltage || '--',
+                            rssi: nodeData.rssi || '--',
+                            timestamp: nodeData.timestamp || '--'
+                        });
+                    }
+                }
 
                 populateNodeFilter();
                 populateChartNodeFilter();
@@ -803,17 +803,15 @@
             }
         }
 
-        // Chart functionality - Simplified
+        // Chart functionality
         async function updateCharts() {
             const loading = document.getElementById('chartLoading');
             loading.style.display = 'block';
 
             try {
-                // Get selected reading range
                 const selectedRange = document.getElementById('readingRangeSelect').value;
                 let url = '/api/sensor-data/history?hours=72';
 
-                // Add limit parameter if not "all"
                 if (selectedRange !== 'all') {
                     url += `&limit=${selectedRange}`;
                 }
@@ -833,16 +831,10 @@
                 const result = await response.json();
 
                 if (result.success && result.data) {
-                    console.log('First data item:', result.data[0]);
-                    console.log('Timestamp fields:', Object.keys(result.data[0]).filter(key =>
-                        key.includes('time') || key.includes('stamp')));
-                    console.log('Timestamp structure:', result.data[0].timestamp);
-
                     const sortedData = result.data.reverse();
                     chartData = sortedData.map(item => ({
                         timestamp: item.timestamp.formatted ? item.timestamp.formatted.split(' ')[1] : item.timestamp,
                         fullTimestamp: item.timestamp || '--',
-                        gatewayTimestamp: item.timestamp.raw || item.timestamp || '--',
                         node_id: item.node_id,
                         temperature: item.temperature,
                         humidity: item.humidity,
@@ -850,15 +842,11 @@
                         battery_voltage: item.battery_voltage,
                         rssi: item.rssi
                     }));
-                    console.log('chartData sample:', chartData[0]);
-                    console.log('chartData length:', chartData.length);
 
                     const selectedRange = document.getElementById('readingRangeSelect').value;
                     if (selectedRange !== 'all' && chartData.length > parseInt(selectedRange)) {
                         chartData = chartData.slice(0, parseInt(selectedRange));
-                        console.log('Applied limit, new chartData length:', chartData.length);
                     }
-
                 } else {
                     console.error('Failed to load data:', result.error || 'No data available');
                     document.getElementById('currentChartTitle').textContent = 'No Data Available';
@@ -869,12 +857,10 @@
             } finally {
                 loading.style.display = 'none';
             }
-            console.log('chartData sample:', chartData[0]);
-            console.log('chartData length:', chartData.length);
 
-            // Render the chart
             renderSingleChart();
         }
+
         function renderSingleChart() {
             const ctx = document.getElementById('singleChart').getContext('2d');
             if (currentChart) currentChart.destroy();
@@ -1005,103 +991,61 @@
                         legend: {
                             display: false
                         },
-
                         tooltip: {
-                                backgroundColor: 'rgba(30, 60, 114, 0.95)',
-                                titleColor: '#ffffff',
-                                bodyColor: '#ffffff',
-                                borderColor: 'rgba(255, 255, 255, 0.3)',
-                                borderWidth: 1,
-                                cornerRadius: 8,
-                                displayColors: true,
-                                callbacks: {
-                                    title: function(tooltipItems) {
-                                    // Show complete gateway timestamp
+                            backgroundColor: 'rgba(30, 60, 114, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(tooltipItems) {
                                     const dataIndex = tooltipItems[0].dataIndex;
                                     const dataPoint = chartData[dataIndex];
-                                    // Use complete gateway timestamp
-                                    const fullTimestamp = dataPoint.fullTimestamp || dataPoint.gatewayTimestamp;
-                                    if (fullTimestamp) {
-                                        try {
-                                            // Clean up timestamp format for proper parsing
-                                            let cleanTimestamp = (typeof fullTimestamp === 'object') ?
-                                                (fullTimestamp.utc || fullTimestamp.formatted || fullTimestamp.toString()) :
-                                                fullTimestamp;
-                                            // Handle different timestamp formats
-                                            if (typeof fullTimestamp === 'string') {
-                                                // Remove 'UTC' suffix and clean up format
-                                                cleanTimestamp = fullTimestamp.replace(' UTC', '').replace('UTC', '');
 
-                                                // If it ends with 'Z', it's already ISO format
-                                                if (!cleanTimestamp.endsWith('Z') && cleanTimestamp.includes('T')) {
-                                                    cleanTimestamp += 'Z'; // Add Z for UTC
-                                                }
-                                            }
-
-                                            const date = new Date(cleanTimestamp);
-
-                                            // Check if date is valid
-                                            if (isNaN(date.getTime())) {
-                                                console.log('Invalid timestamp:', fullTimestamp, 'cleaned:', cleanTimestamp);
-                                                return fullTimestamp; // Return original if can't parse
-                                            }
-
-                                            return date.toLocaleString('en-US', {
-                                                timeZone: currentTimezone,
-                                                weekday: 'short',
-                                                year: 'numeric',
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                                second: '2-digit',
-                                                timeZoneName: 'short'
-                                            });
-                                        } catch (error) {
-                                            console.log('Timestamp parsing error:', error, 'for timestamp:', fullTimestamp);
-                                            return fullTimestamp;
-                                        }
+                                    if (dataPoint.timestamp) {
+                                        return `${new Date().toLocaleDateString()} ${dataPoint.timestamp}`;
                                     }
                                     return tooltipItems[0].label;
                                 },
                                 label: function(context) {
-                                        let value = context.parsed.y;
-                                        let unit = '';
+                                    let value = context.parsed.y;
+                                    let unit = '';
 
-                                        // Add appropriate units
-                                        switch (currentChartType) {
-                                            case 'temperature':
-                                                unit = '°F';
-                                                break;
-                                            case 'humidity':
-                                                unit = '%';
-                                                break;
-                                            case 'pressure':
-                                                unit = ' hPa';
-                                                break;
-                                            case 'battery':
-                                                unit = 'V';
-                                                break;
-                                            case 'signal':
-                                                unit = ' dBm';
-                                                break;
-                                        }
-
-                                        return `${context.dataset.label}: ${value}${unit}`;
-                                    },
-                                    afterBody: function(tooltipItems) {
-                                        const dataIndex = tooltipItems[0].dataIndex;
-                                        const dataPoint = chartData[dataIndex];
-
-                                        return [
-                                            `Node: ${dataPoint.node_id}`,
-                                            `Point ${dataIndex + 1} of ${chartData.length}`
-                                        ];
+                                    switch (currentChartType) {
+                                        case 'temperature':
+                                            unit = '°F';
+                                            break;
+                                        case 'humidity':
+                                            unit = '%';
+                                            break;
+                                        case 'pressure':
+                                            value = Math.round(value);
+                                            unit = ' hPa';
+                                            break;
+                                        case 'battery':
+                                            unit = 'V';
+                                            break;
+                                        case 'signal':
+                                            unit = ' dBm';
+                                            break;
                                     }
+
+                                    return `${context.dataset.label}: ${value}${unit}`;
+                                },
+                                afterBody: function(tooltipItems) {
+                                    const dataIndex = tooltipItems[0].dataIndex;
+                                    const dataPoint = chartData[dataIndex];
+
+                                    return [
+                                        `Node: ${dataPoint.node_id}`,
+                                        `Point ${dataIndex + 1} of ${chartData.length}`
+                                    ];
                                 }
                             }
+                        }
                     },
-
                     scales: {
                         x: {
                             display: true,
@@ -1136,7 +1080,7 @@
                                 },
                                 callback: function(value) {
                                     if (currentChartType === 'pressure') {
-                                        return value.toString();
+                                        return Math.round(value).toString();
                                     }
                                     return value;
                                 }
@@ -1145,7 +1089,7 @@
                         }
                     }
                 }
-            }
+            };
         }
 
         function updateChartTitle() {
@@ -1185,9 +1129,9 @@
                     unit = '%';
                     break;
                 case 'pressure':
-                    currentValue = latestData.pressure ? latestData.pressure.toFixed(1) : '--';
+                    currentValue = latestData.pressure ? Math.round(latestData.pressure) : '--';
                     const pressure = data.map(item => item.pressure || 0).filter(v => v > 0);
-                    average = pressure.length > 0 ? (pressure.reduce((a, b) => a + b, 0) / pressure.length).toFixed(1) : '--';
+                    average = pressure.length > 0 ? Math.round(pressure.reduce((a, b) => a + b, 0) / pressure.length) : '--';
                     unit = ' hPa';
                     break;
                 case 'battery':
@@ -1272,7 +1216,7 @@
                                 <td>${formatTimestampForTimezone(row.received_at || row.timestamp, currentTimezone)}</td>
                                 <td>${parseFloat(row.temperature_f || 0).toFixed(1)}</td>
                                 <td>${parseFloat(row.humidity || 0).toFixed(1)}</td>
-                                <td>${parseFloat(row.pressure_hpa || 0).toFixed(1)}</td>
+                                <td>${Math.round(parseFloat(row.pressure_hpa || 0))}</td>
                                 <td>${parseFloat(row.battery_voltage || 0).toFixed(2)}</td>
                                 <td>${row.rssi || '--'}</td>
                             </tr>
