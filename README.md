@@ -65,10 +65,9 @@ docker-compose up -d
 ### Option 3: Local Development
 
 ```bash
-git clone https://github.com/tech500/lora-bme280-network.git
-cd lora-bme280-network/server
-pip install -r requirements.txt
-python app.py
+git clone https://github.com/Tech500/Lora-BME280-Sensor-Network.git
+cd Lora-BME280-Sensor-Network/docker
+docker-compose up --build
 ```
 
 ## 💡 Use Cases
@@ -243,6 +242,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
