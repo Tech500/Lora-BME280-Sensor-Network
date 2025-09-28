@@ -784,6 +784,16 @@
 					<input type="color" id="pressureColorInput" value="#4bc0c0">
 				</div>
 
+                                <div class="setting-group">
+                                        <label for="batteryColorInput">Battery Chart Color</label>
+                                        <input type="color" id="batteryColorInput" value="#3498db">
+                                </div>
+
+                                <div class="setting-group">
+                                        <label for="signalColorInput">Signal Strength Chart Color</label>
+                                        <input type="color" id="signalColorInput" value="#1e40af">
+                                </div>
+                                      
 				<div class="setting-group">
 					<label>
 						<input type="checkbox" id="showGridLinesInput" checked> Show Chart Grid Lines
@@ -1441,6 +1451,7 @@
                 modal.style.display = 'block';
                 document.getElementById('timezoneInput').value = currentTimezone;
                 document.getElementById('refreshInterval').value = refreshIntervalSeconds;
+                loadEnhancedSettings()
             }
 
             closeBtn.onclick = function() {
@@ -1468,6 +1479,7 @@
                     }
 
                     updateTimezoneDisplay();
+                    saveEnhancedSettings();
                     modal.style.display = 'none';
                     showNotification('Settings saved successfully!', 'success');
                     loadData();
@@ -1475,7 +1487,8 @@
                     showNotification('Invalid timezone. Please use format like: America/New_York', 'error');
                 }
             });
-
+   
+            
             document.getElementById('resetSettings').addEventListener('click', function() {
                 currentTimezone = 'America/New_York';
                 refreshIntervalSeconds = 30;
@@ -1490,6 +1503,48 @@
                 showNotification('Settings reset to defaults', 'success');
                 loadData();
             });
+        }
+
+        });
+        }
+
+        // Enhanced Settings Configuration Object - ADD THIS AFTER LINE 1494
+        const enhancedConfig = {
+            charts: {
+                tempColor: '#1e3a8a',
+                humidityColor: '#1e3a8a', 
+                pressureColor: '#1e3a8a',
+                batteryColor: '#1e3a8a',
+                signalColor: '#1e3a8a'
+            }
+        };
+
+        // Load enhanced settings function
+        function loadEnhancedSettings() {
+            const saved = localStorage.getItem('enhancedLoraSettings');
+            if (saved) {
+                Object.assign(enhancedConfig, JSON.parse(saved));
+            }
+            
+            // Load all color values
+            if (document.getElementById('tempColorInput')) {
+                document.getElementById('tempColorInput').value = enhancedConfig.charts.tempColor;
+                document.getElementById('humidityColorInput').value = enhancedConfig.charts.humidityColor;
+                document.getElementById('pressureColorInput').value = enhancedConfig.charts.pressureColor;
+                document.getElementById('batteryColorInput').value = enhancedConfig.charts.batteryColor;
+                document.getElementById('signalColorInput').value = enhancedConfig.charts.signalColor;
+            }
+        }
+
+        // Save enhanced settings function
+        function saveEnhancedSettings() {
+            enhancedConfig.charts.tempColor = document.getElementById('tempColorInput').value;
+            enhancedConfig.charts.humidityColor = document.getElementById('humidityColorInput').value;
+            enhancedConfig.charts.pressureColor = document.getElementById('pressureColorInput').value;
+            enhancedConfig.charts.batteryColor = document.getElementById('batteryColorInput').value;
+            enhancedConfig.charts.signalColor = document.getElementById('signalColorInput').value;
+            
+            localStorage.setItem('enhancedLoraSettings', JSON.stringify(enhancedConfig));
         }
     </script>
 </body>
