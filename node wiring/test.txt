@@ -1,1 +1,3 @@
-test
+Each Eora Pi node requires a BME280 and a 74HC04 (74HC series is important for its microcontroller friendly operating voltage and no level shifter required).
+
+Gateway requires no wiring, No connections at all.
