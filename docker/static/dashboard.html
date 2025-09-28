@@ -726,38 +726,100 @@
         </div>
     </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h3>Dashboard Settings</h3>
+	<!-- Enhanced Settings Modal -->
+	<div id="settingsModal" class="modal">
+		<div class="modal-content">
+			<span class="close">&times;</span>
+			<h3>Dashboard Settings</h3>
 
-            <div class="setting-group">
-                <label for="timezoneInput">Timezone</label>
-                <input type="text"
-                       id="timezoneInput"
-                       placeholder="America/New_York"
-                       value="America/New_York">
-                <small>Examples: UTC, America/New_York, Europe/London, Asia/Tokyo</small>
-            </div>
+			<!-- Display Settings -->
+			<div class="settings-section">
+				<h4>Display Settings</h4>
+				
+				<div class="setting-group">
+					<label for="dashboardTitleInput">Dashboard Title</label>
+					<input type="text" id="dashboardTitleInput" placeholder="EoRa Pi LoRa Sensor Network">
+				</div>
 
-            <div class="setting-group">
-                <label for="refreshInterval">Auto-refresh Interval (seconds)</label>
-                <input type="number"
-                       id="refreshInterval"
-                       placeholder="30"
-                       value="30"
-                       min="5"
-                       max="300">
-                <small>How often to update data (5-300 seconds)</small>
-            </div>
+				<div class="setting-group">
+					<label for="timezoneInput">Timezone</label>
+					<select id="timezoneInput">
+						<option value="UTC">UTC</option>
+						<option value="America/New_York">Eastern (New York)</option>
+						<option value="America/Chicago">Central (Chicago)</option>
+						<option value="America/Denver">Mountain (Denver)</option>
+						<option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+						<option value="Europe/London">London</option>
+					</select>
+				</div>
 
-            <div class="btn-group">
-                <button class="btn btn-primary" id="saveSettings">Save Settings</button>
-                <button class="btn btn-secondary" id="resetSettings">Reset to Defaults</button>
-            </div>
-        </div>
-    </div>
+				<div class="setting-group">
+					<label for="refreshInterval">Auto-refresh Interval (seconds)</label>
+					<select id="refreshInterval">
+						<option value="5">5 seconds</option>
+						<option value="10">10 seconds</option>
+						<option value="30">30 seconds</option>
+						<option value="60">1 minute</option>
+						<option value="300">5 minutes</option>
+					</select>
+				</div>
+			</div>
+
+			<!-- Chart Settings -->
+			<div class="settings-section">
+				<h4>Chart Appearance</h4>
+				
+				<div class="setting-group">
+					<label for="tempColorInput">Temperature Chart Color</label>
+					<input type="color" id="tempColorInput" value="#1e3a8a">
+				</div>
+
+				<div class="setting-group">
+					<label for="humidityColorInput">Humidity Chart Color</label>
+					<input type="color" id="humidityColorInput" value="#36a2eb">
+				</div>
+
+				<div class="setting-group">
+					<label for="pressureColorInput">Pressure Chart Color</label>
+					<input type="color" id="pressureColorInput" value="#4bc0c0">
+				</div>
+
+				<div class="setting-group">
+					<label>
+						<input type="checkbox" id="showGridLinesInput" checked> Show Chart Grid Lines
+					</label>
+				</div>
+			</div>
+
+			<!-- Data Display Settings -->
+			<div class="settings-section">
+				<h4>Data Display</h4>
+				
+				<div class="setting-group">
+					<label>
+						<input type="checkbox" id="showTemperatureInput" checked> Show Temperature
+					</label>
+				</div>
+
+				<div class="setting-group">
+					<label>
+						<input type="checkbox" id="showHumidityInput" checked> Show Humidity
+					</label>
+				</div>
+
+				<div class="setting-group">
+					<label>
+						<input type="checkbox" id="showPressureInput" checked> Show Pressure
+					</label>
+				</div>
+			</div>
+
+			<div class="btn-group">
+				<button class="btn btn-primary" id="saveSettings">Save All Settings</button>
+				<button class="btn btn-secondary" id="resetSettings">Reset to Defaults</button>
+			</div>
+		</div>
+	</div>
 
     <!-- Notification -->
     <div id="notification" class="notification"></div>
