@@ -4,7 +4,7 @@ services:
     container_name: lora-sensor-api-v5
     build: .
     ports:
-      - "5001:5001"
+      - "5002:5002"
     volumes:
       - ./data:/app/data
       - ./config:/app/config
@@ -12,6 +12,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       
+
 
 
 
