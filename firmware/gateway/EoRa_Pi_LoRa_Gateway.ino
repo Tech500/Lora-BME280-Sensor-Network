@@ -42,8 +42,8 @@
 #include <time.h>
 
 // ===== WIFI & API CONFIGURATION =====
-const char* ssid = "R2D2";
-const char* password = "sissy4357";
+const char* ssid = "YourSSID";
+const char* password = "YourPASSWORD";
 const char* apiUrl = "http://192.168.12.146:5001/api/sensor-data";
 
 // Are we currently connected?
@@ -614,3 +614,4 @@ void loop() {
   
   delay(100); // Small delay to prevent tight loop
 }
+
