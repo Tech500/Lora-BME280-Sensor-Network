@@ -1,6 +1,7 @@
 # 🌡️ LoRa BME280 Sensor Network --Project in progress; still making refinements.  Early, Beta...
 
-"Original concept and development: William Lucid, with AI development assistance for code architecture and documentation. Hardware platform: EoRa-S3-900TB from EbyeIoT.com"    [EoRa-S3-900TB](https://ebyteiot.com/products/ebyte-oem-odm-eora-s3-900tb-22dbm-7km-mini-low-power-and-long-distance-sx1262-rf-module-lora-module-915mhz?_pos=2&_sid=cdc9cd8f7&_ss=r)
+"Original concept and development: William Lucid, with AI development assistance for code architecture and documentation. Hardware platform:    [EoRa-S3-900TB](https://ebyteiot.com/products/ebyte-oem-odm-eora-s3-900tb-22dbm-7km-mini-low-power-and-long-distance-sx1262-rf-module-lora-module-915mhz?_pos=2&_sid=cdc9cd8f7&_ss=r)
+from EbyeIoT.com" 
 
 **A complete, production-ready --stand-alone LoRa sensor network solution for environmental monitoring**
 
@@ -241,6 +242,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 
 *Perfect for makers, researchers, students, and professionals who need reliable environmental monitoring!*
+
 
 
 
