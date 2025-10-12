@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <SPI.h>
-#include <Wire.h>
+//#include <Wire.h>
 #include "utilities.h"
 
 #ifdef HAS_SDCARD
@@ -149,3 +149,4 @@ void initBoard()
     }
 #endif
 }
+
