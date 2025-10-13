@@ -12,7 +12,7 @@
 */
 
 
-//#define RADIOLIB_DEBUG
+#define RADIOLIB_DEBUG
 
 #include <RadioLib.h>
 #define EoRa_PI_V1
@@ -218,7 +218,7 @@ BME280I2C::Settings settings(
 BME280I2C bme(settings);
 
 // ===== SENSOR VALUES =====
-float temperatureF;
+float temperatureC;
 float humidityPercent;
 float pressureHPa;
 
@@ -229,12 +229,12 @@ void collectSensorData() {
 
   bme.read(pres, temp, hum, tempUnit, presUnit);
 
-  temperatureF = temp * 9.0 / 5.0 + 32.0;
+  temperatureC = temp;
   humidityPercent = hum;
   pressureHPa = pres / 100.0;  // Convert Pa to hPa
 
-  Serial.printf("📊 BME280 readings: %.1f°F, %.1f%%, %.1f hPa\n",
-                temperatureF, humidityPercent, pressureHPa);
+  Serial.printf("📊 BME280 readings: %.1f°C, %.1f%%, %.1f hPa\n",
+                temperatureC, humidityPercent, pressureHPa);
 }
 
 void sendSensorResponse() {
@@ -246,7 +246,7 @@ void sendSensorResponse() {
 
   // Format sensor values into strings
   char temperature[7];
-  dtostrf(temperatureF, 6, 1, temperature);
+  dtostrf(temperatureC, 6, 1, temperature);
 
   char humidity[7];
   dtostrf(humidityPercent, 6, 1, humidity);
