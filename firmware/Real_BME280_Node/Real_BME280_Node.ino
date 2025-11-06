@@ -281,7 +281,7 @@ void sendSensorResponse() {
 void taskDispatcher(String storedTimestamp) {
   // Wake over radio
   digitalWrite(BUILTIN_LED, HIGH);
-  //collectSensorData();  //BME280 data
+  collectSensorData();  //BME280 data
   sendSensorResponse();  //Send to Gateway
   Serial.print("   Time:  ");
   Serial.println(storedTimestamp);
@@ -508,3 +508,4 @@ void print_reset_reason(RESET_REASON reason) {
       Serial.println("NO_MEAN");
   }
 }
+
