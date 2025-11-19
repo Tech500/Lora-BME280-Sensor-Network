@@ -200,8 +200,8 @@ void setupLoRa() {
 }
 
 // BME280 I2C pins for EoRa-S3-900TB
-#define I2C_SDA 47
-#define I2C_SCL 48 
+#define I2C_SCL 47
+#define I2C_SDA 48 
 
 //BME280 Settings
 BME280I2C::Settings settings(
@@ -508,4 +508,5 @@ void print_reset_reason(RESET_REASON reason) {
       Serial.println("NO_MEAN");
   }
 }
+
 
